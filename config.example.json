@@ -1,0 +1,92 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 3001
+  },
+  "auth": {
+    "token": null
+  },
+  "terminal": {
+    "enabled": true,
+    "shell": null,
+    "args": [],
+    "cwd": null
+  },
+  "refreshMs": 5000,
+  "nodes": [
+    {
+      "id": "server",
+      "label": "Server",
+      "url": "http://localhost:61208",
+      "api": 4
+    }
+  ],
+  "commands": [
+    {
+      "name": "docker ps",
+      "description": "List running containers",
+      "command": "docker ps --format 'table {{.Names}}\\t{{.Status}}\\t{{.Ports}}'"
+    },
+    {
+      "name": "reboot",
+      "description": "Reboot this machine",
+      "command": "sudo systemctl reboot"
+    }
+  ],
+  "services": [
+    {
+      "group": "Infrastructure",
+      "name": "Glances",
+      "url": "http://localhost:61208",
+      "description": "System metrics API",
+      "container": "glances",
+      "node": "server"
+    },
+    {
+      "group": "Media",
+      "name": "Jellyfin",
+      "url": "http://localhost:8096",
+      "description": "Media server",
+      "container": "jellyfin",
+      "node": "server"
+    },
+    {
+      "group": "Apps",
+      "name": "Notes",
+      "url": "https://notes.example.com",
+      "description": "Self-hosted notes"
+    }
+  ],
+  "alerts": {
+    "enabled": false,
+    "url": "https://ntfy.example.com",
+    "topic": "helm-alerts",
+    "token": null,
+    "clickUrl": "http://localhost:3001/",
+    "intervalMs": 60000,
+    "sustain": 3,
+    "repeatMs": 0,
+    "notifyRecovery": true,
+    "rules": {
+      "cpu": null,
+      "mem": null,
+      "swap": null,
+      "loadPerCore": null,
+      "fs": 90,
+      "temperature": true,
+      "containerCrashed": true,
+      "nodeDown": true
+    },
+    "tokenFile": "/home/you/.config/ntfy-token"
+  },
+  "stacks": {
+    "enabled": true,
+    "dir": "/home/you/stacks",
+    "command": [
+      "docker",
+      "compose"
+    ],
+    "template": "services:\n  {{name}}:\n    image:\n    container_name: {{name}}\n    restart: always\n    environment:\n      TZ: UTC\n    ports:\n      - 8080:8080\n    volumes:\n      # Absolute, under /home/you \u2014 a bare /homelab/... silently creates a\n      # second tree at the filesystem root instead.\n      - /home/you/stacks/{{name}}/data:/data\n    networks:\n      - proxy_net\n\nnetworks:\n  proxy_net:\n    external: true\n",
+    "envTemplate": "TZ=UTC\nPUID=1000\nPGID=1000\n"
+  }
+}

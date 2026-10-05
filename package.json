@@ -1,0 +1,31 @@
+{
+  "name": "helm",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bash -c 'trap \"kill 0\" EXIT; bun run --hot server/index.ts & vite'",
+    "dev:server": "bun run --hot server/index.ts",
+    "dev:web": "vite",
+    "build": "vite build",
+    "start": "bun run server/index.ts",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "tailwindcss": "^4.3.3",
+    "vue": "^3.5.40"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.8",
+    "vite": "^8.1.5",
+    "vite-plugin-vue-devtools": "^8.1.5",
+    "@types/bun": "latest"
+  },
+  "engines": {
+    "node": "^22.18.0 || >=24.12.0"
+  },
+  "description": "Homelab dashboard \u2014 Glances metrics + a root terminal, served over your tailnet"
+}

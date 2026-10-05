@@ -1,0 +1,139 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+ * Palette
+ *
+ * The categorical slots and status colors are a validated set: on this app's
+ * #141414 surface the three series slots clear the lightness band, the chroma
+ * floor, CVD separation (worst all-pairs deutan dE 9.4) and 3:1 contrast.
+ * Re-run the validator before changing a hex.
+ *
+ * This app deliberately ships one look — a dark ops console. Every color is
+ * painted explicitly rather than inherited, so there is nothing to "flip".
+ * ------------------------------------------------------------------------ */
+@theme {
+  /* Surfaces */
+  --color-plane: #0b0b0b;
+  --color-surface: #141414;
+  --color-raised: #1c1c1b;
+  --color-sunken: #101010;
+
+  /* Ink */
+  --color-ink: #ffffff;
+  --color-ink-2: #c3c2b7;
+  --color-muted: #898781;
+
+  /* Chart chrome */
+  --color-hairline: rgba(255, 255, 255, 0.1);
+  --color-grid: #2c2c2a;
+  --color-baseline: #383835;
+
+  /* Categorical series — assign in fixed order, never cycled */
+  --color-series-1: #3987e5;
+  --color-series-2: #d95926;
+  --color-series-3: #199e70;
+  --color-series-4: #c98500;
+
+  /* Status — reserved; never reused as a series color */
+  --color-good: #0ca30c;
+  --color-warning: #fab219;
+  --color-serious: #ec835a;
+  --color-critical: #d03b3b;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+}
+
+/* The device's safe areas, hoisted into variables.
+ *
+ * Anything that covers the screen needs these, not just the app root — a
+ * `fixed inset-0` overlay teleported to <body> sits OUTSIDE #app and would
+ * otherwise put its own header underneath the notch, which is exactly how the
+ * log sheet became impossible to close on a home-screen install.
+ *
+ * As variables they are also overridable, so the layout can be tested against a
+ * simulated notch in a browser that has none. */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+/* Standalone on iOS there is no dynamic toolbar, but in Safari 100% can
+   disagree with what you can actually see; dvh tracks the visible viewport. */
+@supports (height: 100dvh) {
+  html,
+  body,
+  #app {
+    height: 100dvh;
+  }
+}
+
+#app {
+  box-sizing: border-box;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+}
+
+/* Full-screen overlays opt into the same insets. */
+.safe-overlay {
+  box-sizing: border-box;
+  padding-top: calc(var(--safe-top) + 0.75rem);
+  padding-right: calc(var(--safe-right) + 0.75rem);
+  padding-bottom: calc(var(--safe-bottom) + 0.75rem);
+  padding-left: calc(var(--safe-left) + 0.75rem);
+}
+
+body {
+  margin: 0;
+  background: var(--color-plane);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  /* No rubber-band scroll behind a standalone app, and no grey flash on tap. */
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Scrollbars, so panels don't sprout a bright OS-default bar on the dark plane */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-baseline) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-baseline);
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Columns of numbers align; standalone values keep proportional figures. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes tools-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.fade-in {
+  animation: tools-fade-in 0.18s ease-out;
+}

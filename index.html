@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport-fit=cover lets the app run edge to edge once it is on the
+         iPhone home screen; the safe-area insets in main.css keep content out
+         from under the notch and the home indicator. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0b0b0b" />
+
+    <title>helm</title>
+
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
+    <!-- Add to Home Screen: standalone, no Safari chrome, dark status bar.
+
+         "black" (not "black-translucent") on purpose: translucent lays the web
+         view out UNDERNEATH the status bar, which only works if every layer
+         handles the insets, and one that didn't put the log sheet's Close
+         button under the notch. With an opaque bar iOS starts the page below
+         it, and against this page's near-black ground it is invisible anyway.
+         The safe-area variables still cover the home indicator and landscape. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="helm" />
+
+    <style>
+      /* Paint the plane before the bundle lands, so there is no white flash —
+         and no white bar behind the status bar on iOS. */
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #0b0b0b;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
