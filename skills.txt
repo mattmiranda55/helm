@@ -1,0 +1,40 @@
+Skills for helm (from skills.sh — https://www.skills.sh)
+=========================================================
+helm: Bun server + Vue 3 / Tailwind 4 single-page homelab dashboard, PWA,
+mobile-first redesign planned.
+
+Install (project-level, Claude Code):
+  npx skills add <owner/repo> --skill <name> -a claude-code
+
+Design (for the redesign)
+-------------------------
+anthropics/skills@frontend-design                  956K installs
+    Distinctive, production-grade frontend UI; avoids generic AI look.
+vercel-labs/agent-skills@web-design-guidelines     700K installs
+    Web interface guidelines: accessibility, UX, review checklist.
+designed-by-ai/skills@design-mobile-apps           628K installs
+    Mobile app design via sleek.design (paid API, needs a Sleek account).
+    Installed but NOT used — skipped by choice for the first redesign pass.
+
+Used for docs/redesign/: frontend-design (plan + build + critique),
+redesign-existing-projects (audit), web-design-guidelines (review).
+Used for the Vue rebuild: vue-best-practices (component map, composables,
+watch/reactivity rules), tailwind-design-system (v4 tokens, dark mode).
+leonxlnx/taste-skill@redesign-existing-projects    409K installs
+    Redesigning an existing app rather than starting from scratch.
+
+Stack (for implementing the designs)
+------------------------------------
+vuejs-ai/skills@vue-best-practices                  40K installs
+    Vue 3 patterns (composables, <script setup>) — matches src/.
+wshobson/agents@tailwind-design-system              67K installs
+    Tailwind design tokens/system — helm uses Tailwind 4 @theme tokens.
+
+Considered, not picked
+----------------------
+nextlevelbuilder/ui-ux-pro-max-skill@ui-ux-pro-max, pbakaus/impeccable,
+leonxlnx/taste-skill@industrial-brutalist-ui — overlap with the picks above.
+React / React Native / Expo / GSAP skills — wrong stack.
+
+Note: skills.md (@hasna/skills) was installed by mistake; its
+dashboard-builder and microcopy-generator are empty v0.1.0 stubs.

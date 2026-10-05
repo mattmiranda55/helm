@@ -49,6 +49,27 @@ export function uptime(value) {
   return `${Number(minutes)}m`
 }
 
+/** "73 days, 1:57:38" → "73 days 1 hour" — for the machine page's facts. */
+export function uptimeLong(value) {
+  const match = String(value ?? '').match(/(?:(\d+)\s*days?,\s*)?(\d+):(\d+):(\d+)/)
+  if (!match) return value ? String(value) : null
+  const [, days, hours, minutes] = match.map(Number)
+  const unit = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
+  if (days) return `${unit(days, 'day')} ${unit(hours, 'hour')}`
+  if (hours) return `${unit(hours, 'hour')} ${unit(minutes, 'minute')}`
+  return unit(minutes, 'minute')
+}
+
+/** "73 days, 1:57:38" → "up 73 days" — one unit, for a card corner. */
+export function uptimeShort(value) {
+  const match = String(value ?? '').match(/(?:(\d+)\s*days?,\s*)?(\d+):(\d+):(\d+)/)
+  if (!match) return null
+  const [, days, hours, minutes] = match.map(Number)
+  if (days) return `up ${days} day${days === 1 ? '' : 's'}`
+  if (hours) return `up ${hours} hour${hours === 1 ? '' : 's'}`
+  return `up ${minutes} min`
+}
+
 export function temperature(value, unit) {
   const n = Number(value)
   if (!Number.isFinite(n)) return '—'

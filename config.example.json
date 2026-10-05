@@ -48,7 +48,8 @@
       "url": "http://localhost:8096",
       "description": "Media server",
       "container": "jellyfin",
-      "node": "server"
+      "node": "server",
+      "favorite": true
     },
     {
       "group": "Apps",

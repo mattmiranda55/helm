@@ -14,6 +14,7 @@ import { loadConfig, type NodeConfig } from './config'
 import { fetchHistory, fetchMetrics, fetchPlugin, fetchProcesses } from './glances'
 import { act, isAction, logs, nodeIsLocal, resolveEngine } from './containers'
 import { publish, startAlerts, sweep } from './alerts'
+import { iconFile, isIconSlug } from './icons'
 import {
   createStack,
   deleteStack,
@@ -166,9 +167,27 @@ const server = Bun.serve<Session, {}>({
           template: config.stacks.template,
           envTemplate: config.stacks.envTemplate,
         },
+        // The home page flags the same disk level the alerts use, so the two
+        // never disagree about what "almost full" means.
+        thresholds: { fs: config.alerts.rules.fs ?? 90 },
         nodes: config.nodes.map(({ id, label, url }) => ({ id, label, url })),
       }),
     ),
+
+    // Same-origin icons, so the browser never talks to a CDN. Fetched once,
+    // then served from disk; see server/icons.ts.
+    '/api/icons/:slug': guard(async (req) => {
+      const slug = String((req as any).params.slug ?? '').replace(/\.png$/, '')
+      if (!isIconSlug(slug)) return fail('bad icon name', 400)
+      const file = await iconFile(slug)
+      if (!file) return fail('no such icon', 404)
+      return new Response(file, {
+        headers: {
+          'Content-Type': 'image/png',
+          'Cache-Control': 'public, max-age=31536000, immutable',
+        },
+      })
+    }),
 
     '/api/nodes/:id/metrics': guard(async (req) => {
       const node = resolveNode(req)

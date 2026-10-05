@@ -17,17 +17,26 @@ a phone home screen.
   something actually breaks, so you find out without opening anything.
 - **Container control** — restart, stop, start and tail logs from the phone,
   for the node this server runs on. Destructive actions confirm first.
-- **Services** — grouped links to everything you run, scoped to the node tab
-  you are on: MagicMirror shows what runs on MagicMirror. A service with no
-  `node` shows everywhere. One that names a container shows live status pulled
-  from data already on screen, so it costs the watched machine nothing extra.
+- **Apps** — a home-screen style launcher for everything you run, with each
+  app's real icon. An app that names its container shows only while that
+  container is running; stopped ones are counted and left to the Containers
+  page, which is where you'd start them. Mark a few `"favorite": true` and they
+  sit at the top of the home page. Icons come from
+  [dashboard-icons](https://github.com/homarr-labs/dashboard-icons) and are
+  fetched once by the server and cached on disk, so the browser never talks to a
+  CDN.
 - **Terminal** — a real PTY over a WebSocket, with full job control (`Ctrl+C`,
   `Ctrl+Z`, `fg`/`bg`) and a configurable command palette. Runs as *you*, not
   root — so rootless `podman` works against your own socket, and `sudo` covers
   the rest. On touch devices it grows a key bar for the things a phone keyboard
   has no key for: Ctrl, Esc, Tab, arrows, `^C`/`^Z`/`^D`.
-- **Multi-node** — every node in `config.json` gets a tab. Nothing is
-  hard-coded; point it at one machine or twelve.
+- **Multi-node** — every node in `config.json` gets a card on the home page,
+  which leads with anything that needs attention (a crash-looping container, a
+  disk past the alert threshold, a sensor at its limit). Nothing is hard-coded;
+  point it at one machine or twelve.
+- **Mobile first** — four pages (Machines, Apps, Containers, Terminal) behind a
+  bottom tab bar on a phone and a top nav on a wider screen, in light or dark
+  following the device setting.
 
 ## Quick start
 
@@ -126,9 +135,11 @@ Resolution order: `$HELM_CONFIG`, then `./config.json`, then
   "services": [
     { "group": "Media", "name": "Jellyfin", "url": "http://server:8096",
       "description": "Media server",
-      "container": "jellyfin",              // status is read from this container
-      "node": "server" }               // shown only on this node's tab;
-                                            // omit `node` to show on all tabs
+      "container": "jellyfin",              // shown in Apps only while this runs
+      "node": "server",                     // which machine that container is on
+      "icon": "jellyfin",                   // dashboard-icons slug; defaults to the
+                                            // name, 1–2 characters = initials
+      "favorite": true }                    // pinned to the top of the home page
   ],
 
   "commands": [
@@ -142,7 +153,9 @@ Any field can be overridden by environment (what the systemd unit uses):
 `HELM_CONFIG`, `HELM_HOST`, `HELM_PORT`, `HELM_TOKEN`, `HELM_SHELL`,
 `HELM_REFRESH_MS`, `HELM_NODES` (`label=url,label=url`).
 
-Views are linkable: `/?node=laptop&tab=terminal`.
+Pages are real paths, so they can be bookmarked or linked from a notification:
+`/machines/laptop`, `/apps`, `/containers?node=laptop&show=stopped`, `/terminal`.
+Old `/?node=…&tab=terminal` links still land on the right page.
 
 ## Staying cheap
 
@@ -342,9 +355,12 @@ server/          Bun server: Glances client, PTY, static hosting
   config.ts        config loading, validation, env overrides
   glances.ts       TTL-tiered Glances client + normalization
   index.ts         routes, auth, WebSocket
+  icons.ts         app icon cache (dashboard-icons → ~/.cache/helm/icons)
 src/
-  components/      panels, charts, terminal, launcher
-  composables/     polling
-  lib/             api client, formatting, history buffers
+  pages/           Machines, Machine, Apps, Containers
+  components/      ui/ primitives, plus machines/, machine/, apps/,
+                   containers/, terminal/, nav/ feature folders
+  composables/     polling (one machine or all), stacks, toasts
+  lib/             api client, router, attention rules, formatting, history
 install.sh       systemd installer (runs from this checkout)\nbin/\n  tailnet-env.sh   resolves the tailnet bind address at service start
 ```

@@ -1,63 +1,103 @@
 @import "tailwindcss";
+@import "@fontsource-variable/quicksand";
+@import "@fontsource/space-mono/400.css";
+@import "@fontsource/space-mono/700.css";
 
 /* ---------------------------------------------------------------------------
- * Palette
+ * Tokens
  *
- * The categorical slots and status colors are a validated set: on this app's
- * #141414 surface the three series slots clear the lightness band, the chroma
- * floor, CVD separation (worst all-pairs deutan dE 9.4) and 3:1 contrast.
- * Re-run the validator before changing a hex.
+ * Color means data or state, nothing else: there is no brand accent. The
+ * surfaces are a cool grey (light) and a steel blue (dark), following the
+ * device setting. Token names are kept from the old single-theme palette so
+ * every utility (`bg-surface`, `text-muted`, …) still resolves; only the
+ * values changed.
  *
- * This app deliberately ships one look — a dark ops console. Every color is
- * painted explicitly rather than inherited, so there is nothing to "flip".
+ * The series and status hues are the validated set (CVD-separated, ≥3:1 on
+ * their surface); the light steps are their darker counterparts.
  * ------------------------------------------------------------------------ */
-@theme {
+@theme static {
   /* Surfaces */
-  --color-plane: #0b0b0b;
-  --color-surface: #141414;
-  --color-raised: #1c1c1b;
-  --color-sunken: #101010;
+  --color-plane: #eceef0;
+  --color-surface: #ffffff;
+  --color-raised: #e2e5e8;
+  --color-sunken: #e2e5e8;
 
   /* Ink */
-  --color-ink: #ffffff;
-  --color-ink-2: #c3c2b7;
-  --color-muted: #898781;
+  --color-ink: #15181b;
+  --color-ink-2: #464c53;
+  --color-muted: #6b727a;
 
-  /* Chart chrome */
-  --color-hairline: rgba(255, 255, 255, 0.1);
-  --color-grid: #2c2c2a;
-  --color-baseline: #383835;
+  /* Lines */
+  --color-hairline: rgba(21, 24, 27, 0.12);
+  --color-grid: rgba(21, 24, 27, 0.1);
+  --color-baseline: rgba(21, 24, 27, 0.2);
+
+  /* Machine labels: black tape, white print */
+  --color-tape: #15181b;
+  --color-tape-ink: #f4f5f6;
+
+  /* The terminal and logs stay dark in both themes */
+  --color-term: #15181b;
+  --color-term-ink: #dfe3e6;
 
   /* Categorical series — assign in fixed order, never cycled */
-  --color-series-1: #3987e5;
-  --color-series-2: #d95926;
-  --color-series-3: #199e70;
-  --color-series-4: #c98500;
+  --color-series-1: #2a6fc9;
+  --color-series-2: #c24a1b;
+  --color-series-3: #12855d;
+  --color-series-4: #a86f00;
 
   /* Status — reserved; never reused as a series color */
-  --color-good: #0ca30c;
-  --color-warning: #fab219;
-  --color-serious: #ec835a;
-  --color-critical: #d03b3b;
+  --color-good: #0a8a0a;
+  --color-warning: #a86f00;
+  --color-serious: #c2582b;
+  --color-critical: #c02f2f;
 
-  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  --font-sans: "Quicksand Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Space Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-card: 20px;
+  --radius-row: 12px;
 }
 
-/* The device's safe areas, hoisted into variables.
- *
- * Anything that covers the screen needs these, not just the app root — a
- * `fixed inset-0` overlay teleported to <body> sits OUTSIDE #app and would
- * otherwise put its own header underneath the notch, which is exactly how the
- * log sheet became impossible to close on a home-screen install.
- *
- * As variables they are also overridable, so the layout can be tested against a
- * simulated notch in a browser that has none. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-plane: #1a1e22;
+    --color-surface: #22272c;
+    --color-raised: #2b3137;
+    --color-sunken: #15181b;
+    --color-ink: #eef0f2;
+    --color-ink-2: #b4bac1;
+    --color-muted: #8a929a;
+    --color-hairline: rgba(238, 240, 242, 0.1);
+    --color-grid: rgba(238, 240, 242, 0.08);
+    --color-baseline: rgba(238, 240, 242, 0.18);
+    --color-tape: #eceee6;
+    --color-tape-ink: #15181b;
+    --color-series-1: #3987e5;
+    --color-series-2: #d95926;
+    --color-series-3: #199e70;
+    --color-series-4: #c98500;
+    --color-good: #2bb32b;
+    --color-warning: #fab219;
+    --color-serious: #ec835a;
+    --color-critical: #e05252;
+    color-scheme: dark;
+  }
+}
+
+/* The device's safe areas, hoisted into variables so a fixed overlay outside
+ * #app can use them too, and so a notch can be simulated in a browser. */
 :root {
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+  }
 }
 
 html,
@@ -66,8 +106,8 @@ body,
   height: 100%;
 }
 
-/* Standalone on iOS there is no dynamic toolbar, but in Safari 100% can
-   disagree with what you can actually see; dvh tracks the visible viewport. */
+/* In Safari 100% can disagree with what you can actually see; dvh tracks the
+   visible viewport. */
 @supports (height: 100dvh) {
   html,
   body,
@@ -78,16 +118,7 @@ body,
 
 #app {
   box-sizing: border-box;
-  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
-}
-
-/* Full-screen overlays opt into the same insets. */
-.safe-overlay {
-  box-sizing: border-box;
-  padding-top: calc(var(--safe-top) + 0.75rem);
-  padding-right: calc(var(--safe-right) + 0.75rem);
-  padding-bottom: calc(var(--safe-bottom) + 0.75rem);
-  padding-left: calc(var(--safe-left) + 0.75rem);
+  padding: var(--safe-top) var(--safe-right) 0 var(--safe-left);
 }
 
 body {
@@ -95,45 +126,177 @@ body {
   background: var(--color-plane);
   color: var(--color-ink);
   font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 15px;
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   /* No rubber-band scroll behind a standalone app, and no grey flash on tap. */
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Scrollbars, so panels don't sprout a bright OS-default bar on the dark plane */
+button,
+a,
+input {
+  touch-action: manipulation;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-series-1);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-baseline) transparent;
 }
-*::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-*::-webkit-scrollbar-thumb {
-  background: var(--color-baseline);
-  border-radius: 4px;
-}
-*::-webkit-scrollbar-thumb:hover {
-  background: var(--color-muted);
-}
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
 
-/* Columns of numbers align; standalone values keep proportional figures. */
+/* Columns of numbers align. */
 .tabular {
   font-variant-numeric: tabular-nums;
 }
 
-@keyframes tools-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
+/* Numbers and identifiers wear the mono face, a touch tighter since it runs wide. */
+.num {
+  font-family: var(--font-mono);
+  letter-spacing: -0.02em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
   }
 }
-.fade-in {
-  animation: tools-fade-in 0.18s ease-out;
+
+/* ---------------------------------------------------------------------------
+ * Shared controls. Plain classes rather than components: they're used on
+ * native <button>/<a> elements all over, and a wrapper would only forward attrs.
+ * ------------------------------------------------------------------------ */
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid var(--color-hairline);
+    background: var(--color-surface);
+    color: var(--color-ink);
+    border-radius: 999px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 650;
+    white-space: nowrap;
+    text-decoration: none;
+    transition: background-color 0.2s, transform 0.1s;
+  }
+  .btn:hover {
+    background: var(--color-sunken);
+  }
+  .btn:active {
+    transform: scale(0.98);
+  }
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background: var(--color-ink);
+    border-color: var(--color-ink);
+    color: var(--color-plane);
+  }
+  .btn-primary:hover {
+    background: var(--color-ink-2);
+  }
+  .btn-danger {
+    color: var(--color-critical);
+  }
+  .btn-armed,
+  .btn-armed:hover {
+    background: var(--color-critical);
+    border-color: var(--color-critical);
+    color: #fff;
+  }
+
+  .chip {
+    border: 1px solid var(--color-hairline);
+    background: none;
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 14px;
+    color: var(--color-ink-2);
+    white-space: nowrap;
+    transition: background-color 0.2s;
+  }
+  .chip:hover {
+    background: var(--color-sunken);
+  }
+  .chip[aria-pressed='true'] {
+    background: var(--color-ink);
+    border-color: var(--color-ink);
+    color: var(--color-plane);
+  }
+
+  .text-link {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--color-ink-2);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    font-size: 14px;
+  }
+  .text-link:hover {
+    color: var(--color-ink);
+  }
+
+  .note {
+    background: var(--color-sunken);
+    border-radius: var(--radius-row);
+    padding: 12px 14px;
+    font-size: 14px;
+    color: var(--color-ink-2);
+  }
+
+  .page {
+    max-width: 1180px;
+    margin-inline: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+  .page-title {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+  }
+  .page-sub {
+    color: var(--color-muted);
+    font-size: 14px;
+    margin-top: 4px;
+  }
+  .section-title {
+    font-size: 17px;
+    font-weight: 700;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .section-title .count {
+    color: var(--color-muted);
+    font-weight: 500;
+    font-size: 14px;
+  }
 }

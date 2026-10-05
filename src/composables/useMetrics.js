@@ -1,6 +1,7 @@
 import { onScopeDispose, ref, shallowRef, watch } from 'vue'
 import { fetchCapabilities, fetchHistory, fetchMetrics, fetchProcesses } from '@/lib/api'
 import { HISTORY_LENGTH, isSeeded, push, seed } from '@/lib/history'
+import { markFailed, markReached } from '@/lib/connection'
 
 /**
  * Polls one node. The active node is reactive, so switching machines cancels
@@ -81,6 +82,7 @@ export function useMetrics(nodeId, refreshMs, wantProcesses) {
       ])
       if (mine !== generation) return
 
+      markReached()
       recordHistory(snapshot)
       metrics.value = snapshot
       if (processList) processes.value = processList
@@ -88,6 +90,7 @@ export function useMetrics(nodeId, refreshMs, wantProcesses) {
       misses.value = 0
     } catch (cause) {
       if (signal.aborted || mine !== generation) return
+      markFailed(cause)
       misses.value += 1
       error.value = cause.message ?? String(cause)
     } finally {
@@ -129,6 +132,11 @@ export function useMetrics(nodeId, refreshMs, wantProcesses) {
       misses.value = 0
       loading.value = true
       capabilities.value = { containers: false, local: false }
+      // No machine yet (config still loading): nothing to poll, prime or ask about.
+      if (!id) {
+        loading.value = false
+        return
+      }
       schedule()
       prime(id, generation)
 

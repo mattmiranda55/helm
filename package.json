@@ -12,6 +12,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource-variable/quicksand": "^5.3.0",
+    "@fontsource/space-mono": "^5.3.0",
     "@tailwindcss/vite": "^4.3.3",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
@@ -27,5 +29,5 @@
   "engines": {
     "node": "^22.18.0 || >=24.12.0"
   },
-  "description": "Homelab dashboard \u2014 Glances metrics + a root terminal, served over your tailnet"
+  "description": "Homelab dashboard — Glances metrics + a root terminal, served over your tailnet"
 }

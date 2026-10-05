@@ -49,8 +49,14 @@ export type ServiceConfig = {
    * would read as "not running" simply because you are looking elsewhere.
    */
   node?: string
-  /** One or two characters for the tile. Defaults to the name's initial. */
+  /**
+   * A dashboard-icons slug ("jellyfin", "pi-hole"), served and cached by
+   * /api/icons. Defaults to the name as a slug, so most apps need nothing here.
+   * One or two characters are used as the tile's initials instead.
+   */
   icon?: string
+  /** Pinned to the top of the Machines page. */
+  favorite?: boolean
 }
 
 export type AlertConfig = {
@@ -256,6 +262,7 @@ function normalizeService(raw: any, index: number): ServiceConfig {
     container: raw.container ? String(raw.container) : undefined,
     node: raw.node ? slug(String(raw.node)) : undefined,
     icon: raw.icon ? String(raw.icon) : undefined,
+    favorite: raw.favorite === true,
   }
 }
 

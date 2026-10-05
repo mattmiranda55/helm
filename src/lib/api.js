@@ -106,6 +106,13 @@ export const fetchHistory = (nodeId, points = 60, options) =>
 export const fetchProcesses = (nodeId, limit = 20, options) =>
   get(`/api/nodes/${encodeURIComponent(nodeId)}/processes?limit=${limit}`, options)
 
+/** Same-origin app icon, cached by the server (server/icons.ts). An <img>
+ *  cannot send headers, so the token rides along as a query param. */
+export function iconUrl(slug) {
+  const suffix = TOKEN ? `?token=${encodeURIComponent(TOKEN)}` : ''
+  return `/api/icons/${encodeURIComponent(slug)}${suffix}`
+}
+
 /** WebSocket URL for the PTY, carrying the token as a query param — the
  *  browser WebSocket API cannot set headers. */
 export function ptyUrl() {
