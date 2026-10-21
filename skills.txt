@@ -1,7 +1,7 @@
 Skills for helm (from skills.sh — https://www.skills.sh)
 =========================================================
-helm: Bun server + Vue 3 / Tailwind 4 single-page homelab dashboard, PWA,
-mobile-first redesign planned.
+helm: Bun server + Ionic Vue 9 homelab dashboard, used as an iOS
+home-screen web app (no Capacitor).
 
 Install (project-level, Claude Code):
   npx skills add <owner/repo> --skill <name> -a claude-code
@@ -19,7 +19,8 @@ designed-by-ai/skills@design-mobile-apps           628K installs
 Used for docs/redesign/: frontend-design (plan + build + critique),
 redesign-existing-projects (audit), web-design-guidelines (review).
 Used for the Vue rebuild: vue-best-practices (component map, composables,
-watch/reactivity rules), tailwind-design-system (v4 tokens, dark mode).
+watch/reactivity rules), tailwind-design-system (v4 tokens, dark mode; Tailwind
+has since been removed).
 leonxlnx/taste-skill@redesign-existing-projects    409K installs
     Redesigning an existing app rather than starting from scratch.
 
@@ -28,7 +29,21 @@ Stack (for implementing the designs)
 vuejs-ai/skills@vue-best-practices                  40K installs
     Vue 3 patterns (composables, <script setup>) — matches src/.
 wshobson/agents@tailwind-design-system              67K installs
-    Tailwind design tokens/system — helm uses Tailwind 4 @theme tokens.
+    Tailwind design tokens/system — no longer applies: Tailwind was removed;
+    helm now uses Ionic's CSS and utility classes plus plain :root tokens.
+
+Ionic (for the Ionic conversion and best-practice audit)
+--------------------------------------------------------
+capawesome-team/skills@ionic-vue                   472 installs
+    Ionic Vue patterns: IonPage, tabs + IonRouterOutlet, useIonRouter,
+    view lifecycle hooks, composables.
+capawesome-team/skills@ionic-app-development      1.1K installs
+    Component reference (layout, forms, overlays, lists, navigation).
+cap-go/capgo-skills@ionic-design                  1.6K installs
+    Ionic 9 page structure, modern form syntax, theming, dark palettes.
+Skipped: capawesome ionic-expert (overlaps; pushes third-party MCP servers),
+the Capacitor/native-only skills (helm is a web app), auth0-ionic-vue (no
+Auth0). Contents were reviewed before install (markdown only, no scripts).
 
 Considered, not picked
 ----------------------

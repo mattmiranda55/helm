@@ -56,7 +56,9 @@ normal width for everything else. Tabular figures throughout. Sentence case.
 tape, the way homelabbers actually label boxes in the closet. Everything else
 stays quiet.
 
-**Layout**
+**Layout** *(the navigation chrome here is superseded by round 4: a native
+iOS navigation bar with a large title, and the tab bar on every screen size,
+not a top nav on desktop. The content order still holds.)*
 
 ```
 Phone                               Desktop (≥ 860px)
@@ -83,6 +85,14 @@ Pages: **Machines** (overview) → **Machine** detail · **Apps** (launcher) ·
 **Containers** (grouped by stack) · **Terminal**. Actions open a bottom sheet
 on a phone and a side panel on desktop. Destructive actions confirm inline
 ("Tap again to stop"), never with a modal.
+
+> **Superseded (round 4).** Actions open a native Ionic sheet modal on a phone
+> and Ionic's centered card on a wide screen, not a side panel. Destructive
+> actions now confirm with the native iOS action sheet (the action in red,
+> Cancel set apart), not a second tap. Once the whole UI was native Ionic, a
+> hand-rolled "tap again" button was the one control that didn't behave like
+> the rest of the phone; the action sheet is what iOS users expect before
+> something destructive, and it still takes only one extra tap.
 
 **Principles**
 
@@ -130,8 +140,30 @@ on a phone and a side panel on desktop. Destructive actions confirm inline
   common generated dashboard. Revised to a steel-blue dark and a cool-grey
   light theme with **no** accent hue — color is reserved for data and state.
 - *Left sidebar on desktop* is the dashboard default. Revised to a top nav;
-  there are only four destinations.
+  there are only four destinations. *(Superseded by round 4: the bottom tab
+  bar is used on every screen size.)*
 - *Big-number tiles opening the page* is the default hero. Revised: the page
   opens with "Needs attention" (or a one-line all-clear), because that is the
   job; numbers come second.
 - *Monospace small labels* — dropped; the terminal is the only monospace.
+
+## Revisions (round 4: Ionic)
+
+The frontend was rebuilt on Ionic Vue (iOS mode on every platform) so that,
+installed on an iPhone home screen, it behaves like the native apps around it.
+The brief, the palette, the type and the principles above are unchanged;
+what changed is the chrome, which is now Ionic's own rather than drawn by hand.
+
+- **Navigation:** a native iOS navigation bar on every page (back button or
+  the Live status, title, Settings) with a large title that collapses into it
+  on scroll; the wordmark header is gone. The bottom tab bar is used on every
+  screen size, replacing the desktop top nav.
+- **Sheets:** native sheet modals with drag-to-close detents on a phone, and
+  Ionic's centered card on a wide screen in place of the side panel. Primary
+  actions sit in the sheet's footer so they stay reachable while it scrolls.
+- **Confirmations:** native iOS action sheets for stop, take down and delete
+  (see the note under Pages above), replacing the inline two-tap pattern.
+- **Other native controls:** segmented control for picking a machine, toasts
+  above the tab bar, pull to refresh, and a Settings page for the access token.
+- **Color still means data or state only.** Ionic's variables are mapped onto
+  the tokens above; its "primary" is plain ink, not an accent.

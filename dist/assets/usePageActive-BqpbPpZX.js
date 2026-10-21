@@ -1,0 +1,1 @@
+import{Bt as e,Gn as t,Vt as n}from"./api-CuFL5MAY.js";function r(){let r=t(!0);return e(()=>r.value=!0),n(()=>r.value=!1),r}export{r as t};

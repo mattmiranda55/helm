@@ -16,7 +16,7 @@ defineProps({
   color: var(--color-tape-ink);
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1;
   padding: 6px 10px 5px;
   border-radius: 3px;
@@ -27,7 +27,7 @@ defineProps({
   white-space: nowrap;
 }
 .big {
-  font-size: 20px;
+  font-size: 1.25rem;
   padding: 8px 14px 7px;
 }
 </style>

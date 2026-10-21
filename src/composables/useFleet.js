@@ -10,11 +10,13 @@ import { useMetrics } from './useMetrics'
  * Machines are separate Glances instances, so polling them side by side does
  * not break the one-request-at-a-time rule — that rule is per machine, and
  * the server enforces it.
+ *
+ * `active` (usePageActive()) pauses every poller while the page is off screen.
  */
-export function useFleet(nodes, refreshMs) {
+export function useFleet(nodes, refreshMs, active) {
   const interval = computed(() => toValue(refreshMs))
   const pollers = new Map() // id -> { scope, api }
-  const active = shallowRef({})
+  const running = shallowRef({})
 
   watch(
     () => toValue(nodes).map((node) => node.id).join('\n'),
@@ -28,10 +30,10 @@ export function useFleet(nodes, refreshMs) {
       for (const id of ids) {
         if (pollers.has(id)) continue
         const scope = effectScope(true)
-        const api = scope.run(() => useMetrics(shallowRef(id), interval, null))
+        const api = scope.run(() => useMetrics(shallowRef(id), interval, null, active))
         pollers.set(id, { scope, api })
       }
-      active.value = Object.fromEntries([...pollers].map(([id, { api }]) => [id, api]))
+      running.value = Object.fromEntries([...pollers].map(([id, { api }]) => [id, api]))
     },
     { immediate: true },
   )
@@ -44,7 +46,7 @@ export function useFleet(nodes, refreshMs) {
   /** { [id]: { metrics, error, misses, loading, capabilities } } */
   const snapshots = computed(() =>
     Object.fromEntries(
-      Object.entries(active.value).map(([id, api]) => [
+      Object.entries(running.value).map(([id, api]) => [
         id,
         {
           metrics: api.metrics.value,
@@ -57,5 +59,8 @@ export function useFleet(nodes, refreshMs) {
     ),
   )
 
-  return { snapshots }
+  /** Fetch every machine now; resolves when all have answered (pull-to-refresh). */
+  const refresh = () => Promise.all([...pollers.values()].map(({ api }) => api.refresh()))
+
+  return { snapshots, refresh }
 }

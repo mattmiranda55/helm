@@ -4,8 +4,27 @@
     {
       "name": "web",
       "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "dev:web"],
+      "runtimeArgs": [
+        "run",
+        "dev:web"
+      ],
       "port": 5173
+    },
+    {
+      "name": "fake-backend",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "/private/tmp/claude-501/-Users-matt--claude-spares-spare-UFcDPP/e5dab1c1-a271-468d-bebd-f39f6985b608/scratchpad/fake/run.sh"
+      ],
+      "port": 3001
+    },
+    {
+      "name": "fresh-backend",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "/private/tmp/claude-501/-Users-matt--claude-spares-spare-UFcDPP/e5dab1c1-a271-468d-bebd-f39f6985b608/scratchpad/fresh/run.sh"
+      ],
+      "port": 3001
     }
   ]
 }

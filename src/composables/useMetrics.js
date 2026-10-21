@@ -1,4 +1,4 @@
-import { onScopeDispose, ref, shallowRef, watch } from 'vue'
+import { onScopeDispose, ref, shallowRef, toValue, watch } from 'vue'
 import { fetchCapabilities, fetchHistory, fetchMetrics, fetchProcesses } from '@/lib/api'
 import { HISTORY_LENGTH, isSeeded, push, seed } from '@/lib/history'
 import { markFailed, markReached } from '@/lib/connection'
@@ -15,8 +15,12 @@ import { markFailed, markReached } from '@/lib/connection'
  * `wantProcesses` gates the process list: it is by far the most expensive thing
  * Glances can be asked for (~89ms of the watched machine's CPU per call), so it
  * is fetched only while that panel is actually open.
+ *
+ * `active` pauses polling while the page is not on screen. Ionic keeps a tab's
+ * pages mounted after you leave them, so without it every page you had visited
+ * would keep polling in the background. Pass usePageActive() from a page.
  */
-export function useMetrics(nodeId, refreshMs, wantProcesses) {
+export function useMetrics(nodeId, refreshMs, wantProcesses, active) {
   const metrics = shallowRef(null)
   const processes = shallowRef([])
   const error = ref(null)
@@ -29,6 +33,7 @@ export function useMetrics(nodeId, refreshMs, wantProcesses) {
   let controller = null
   let timer = null
   let generation = 0
+  let calls = 0
 
   function recordHistory(snapshot) {
     const id = snapshot.node.id
@@ -98,16 +103,23 @@ export function useMetrics(nodeId, refreshMs, wantProcesses) {
     }
   }
 
+  const paused = () => document.hidden || (active != null && !toValue(active))
+
+  /** Fetch now and restart the wait; resolves once that fetch has landed (pull-to-refresh). */
   function schedule() {
     clearTimeout(timer)
+    if (paused()) return
     const id = nodeId.value
     if (!id) {
       loading.value = false
       return
     }
     const mine = generation
-    tick(id, mine).finally(() => {
-      if (mine !== generation) return
+    // A newer schedule() (pull-to-refresh, opening processes) aborts this one;
+    // only the latest call may arm the next tick, or polling would double up.
+    const call = ++calls
+    return tick(id, mine).finally(() => {
+      if (mine !== generation || call !== calls) return
       timer = setTimeout(schedule, Math.max(refreshMs.value ?? 3000, 1000))
     })
   }
@@ -149,6 +161,17 @@ export function useMetrics(nodeId, refreshMs, wantProcesses) {
     },
     { immediate: true },
   )
+
+  // Coming back to the page refreshes now rather than a tick later.
+  if (active != null) {
+    watch(
+      () => toValue(active),
+      (on) => {
+        if (on) schedule()
+        else clearTimeout(timer)
+      },
+    )
+  }
 
   // A backgrounded tab should not keep hammering every node it ever showed.
   function onVisibility() {

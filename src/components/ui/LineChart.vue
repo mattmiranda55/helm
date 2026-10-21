@@ -129,7 +129,7 @@ const hoverLabel = computed(() => {
   position: absolute;
   right: 0;
   transform: translateY(-110%);
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--color-muted);
   background: var(--color-surface);
   padding: 0 3px;
@@ -159,7 +159,7 @@ const hoverLabel = computed(() => {
   transform: translate(-50%, -100%);
   background: var(--color-ink);
   color: var(--color-plane);
-  font-size: 12.5px;
+  font-size: 0.7812rem;
   padding: 6px 9px;
   border-radius: 8px;
   white-space: nowrap;

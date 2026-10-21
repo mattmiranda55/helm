@@ -3,21 +3,25 @@
  *
  * Three jobs:
  *   1. /api/*  — normalized Glances metrics for every configured node
- *   2. /pty    — a WebSocket-attached PTY (this is why the service runs as root)
+ *   2. /pty    — a WebSocket-attached PTY: a real shell as the service's user
  *   3. /       — the built dashboard, in production
  *
  * In development Vite serves the frontend on :5173 and proxies /api and /pty
  * here, so `bun run dev` and the installed service behave identically.
  */
 
-import { loadConfig, type NodeConfig } from './config'
-import { fetchHistory, fetchMetrics, fetchPlugin, fetchProcesses } from './glances'
+import { resolve } from 'node:path'
+import { configWriteTarget, loadConfig, type NodeConfig } from './config'
+import { fetchHistory, fetchMetrics, fetchPlugin, fetchProcesses, forgetNode } from './glances'
 import { act, isAction, logs, nodeIsLocal, resolveEngine } from './containers'
+import { prepareSetupCode, setupRoutes } from './setup'
 import { publish, startAlerts, sweep } from './alerts'
 import { iconFile, isIconSlug } from './icons'
 import {
   createStack,
   deleteStack,
+  effectiveEnvTemplate,
+  effectiveTemplate,
   getJob,
   isStackAction,
   listStacks,
@@ -27,8 +31,19 @@ import {
   writeStackFiles,
 } from './stacks'
 
-const { config, source } = await loadConfig()
+const loaded = await loadConfig()
+/**
+ * The live config. Setup and Settings change it while running: reload()
+ * re-reads the file and replaces each key of this same object, so every
+ * handler that reads `config.x` sees the new value. server.* (host, port,
+ * allowedOrigins) is the exception — it is fixed at startup.
+ */
+const config = loaded.config
+const state = { configured: loaded.configured, source: loaded.source }
 const nodesById = new Map<string, NodeConfig>(config.nodes.map((node) => [node.id, node]))
+
+/** Set while unconfigured; see server/setup.ts. */
+const setup = state.configured ? null : await prepareSetupCode(configWriteTarget(loaded.path))
 
 const DIST = new URL('../dist/', import.meta.url).pathname
 const hasDist = await Bun.file(`${DIST}index.html`).exists()
@@ -58,8 +73,104 @@ function resolveNode(req: Request): NodeConfig | Response {
   return node ?? fail(`unknown node "${id}"`, 404)
 }
 
-const guard = (handler: (req: Request) => Response | Promise<Response>) => (req: Request) =>
-  authorized(req) ? handler(req) : fail('unauthorized', 401)
+// ---------------------------------------------------------------- origins
+
+/**
+ * Browser origins other than this server's own that may call it: only what
+ * `server.allowedOrigins` names, empty by default. The app is same-origin
+ * (served by this server, including as a home-screen web app), so nothing
+ * needs to be here unless you put another frontend in front of it.
+ */
+const allowedOrigins = new Set(config.server.allowedOrigins)
+
+/** Only these may read API responses cross-origin. Never "*", never reflected. */
+const corsOrigin = (req: Request): string | null => {
+  const origin = req.headers.get('origin')
+  return origin && allowedOrigins.has(origin) ? origin : null
+}
+
+/**
+ * May this request act on the server? Browsers do not apply CORS to
+ * WebSockets, and send "simple" POSTs without a preflight, so without this any
+ * web page could open /pty — a real shell — or stop containers, whenever no
+ * token is set (the default). Allowed:
+ *
+ *   - no Origin at all: not a browser (curl, scripts) — the token still applies
+ *   - Sec-Fetch-Site: same-origin, which pages cannot forge; this is what lets
+ *     the Vite dev proxy through, since it rewrites Host but not Origin
+ *   - an Origin naming this server's own host (the built app it serves)
+ *   - an origin listed in server.allowedOrigins
+ */
+function originAllowed(req: Request): boolean {
+  const origin = req.headers.get('origin')
+  if (!origin) return true
+  if (req.headers.get('sec-fetch-site') === 'same-origin') return true
+  if (allowedOrigins.has(origin)) return true
+  let host: string
+  try {
+    host = new URL(origin).host
+  } catch {
+    return false
+  }
+  // A page can't set either header on a WebSocket, and a fetch carrying a
+  // custom one is preflighted — which only allowlisted origins pass.
+  return host === req.headers.get('host') || host === req.headers.get('x-forwarded-host')
+}
+
+const PREFLIGHT_HEADERS = {
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE',
+  'Access-Control-Allow-Headers': 'X-Helm-Token, X-Helm-Setup-Code, Authorization, Content-Type',
+  // WebKit caps this at 10 minutes anyway.
+  'Access-Control-Max-Age': '600',
+}
+
+/** Answers preflights itself (before auth: a preflight never carries the
+ *  token) and stamps CORS headers on responses for allowlisted origins. */
+const cors =
+  (handler: (req: Request) => Response | Promise<Response>) => async (req: Request) => {
+    const origin = corsOrigin(req)
+    if (req.method === 'OPTIONS') {
+      if (!origin) return fail('origin not allowed', 403)
+      return new Response(null, {
+        status: 204,
+        headers: { 'Access-Control-Allow-Origin': origin, Vary: 'Origin', ...PREFLIGHT_HEADERS },
+      })
+    }
+    const response = await handler(req)
+    // Whether the header is present depends on Origin, so caches must key on it.
+    response.headers.append('Vary', 'Origin')
+    if (origin) response.headers.set('Access-Control-Allow-Origin', origin)
+    return response
+  }
+
+const MUTATING = new Set(['POST', 'PUT', 'DELETE', 'PATCH'])
+
+/**
+ * Until first-run setup is done there is no token, so nothing but the setup
+ * flow may run: above all not the terminal, which could simply read the
+ * setup code off disk and make it pointless. /api/config stays readable (it
+ * is only the defaults then) so the app can load far enough to show setup.
+ */
+const OPEN_DURING_SETUP = new Set(['/api/config'])
+const setupPending = (req: Request) =>
+  !state.configured && !OPEN_DURING_SETUP.has(new URL(req.url).pathname)
+
+const guard = (handler: (req: Request) => Response | Promise<Response>) =>
+  cors((req: Request) => {
+    if (setupPending(req)) return fail('helm is not set up yet — finish setup first', 409)
+    if (MUTATING.has(req.method) && !originAllowed(req)) return fail('origin not allowed', 403)
+    return authorized(req) ? handler(req) : fail('unauthorized', 401)
+  })
+
+/** WebSocket upgrades: same origin rules as mutations, then the token. */
+function refuseUpgrade(req: Request): Response | null {
+  if (setupPending(req)) return fail('helm is not set up yet — finish setup first', 409)
+  if (!originAllowed(req)) {
+    console.warn(`[ws] refused ${new URL(req.url).pathname} from origin ${req.headers.get('origin')}`)
+    return fail('origin not allowed', 403)
+  }
+  return authorized(req) ? null : fail('unauthorized', 401)
+}
 
 // ---------------------------------------------------------------- PTY
 
@@ -155,17 +266,31 @@ const server = Bun.serve<Session, {}>({
   idleTimeout: 120,
 
   routes: {
-    '/api/health': () => json({ ok: true, nodes: config.nodes.length }),
+    // Open on purpose (a liveness probe, no secrets); CORS so the native
+    // app's Settings page can test an address before it has a token.
+    // `setup` tells the app to show the first-run wizard instead of asking for
+    // a token it cannot have yet.
+    '/api/health': cors(() =>
+      json({ ok: true, nodes: config.nodes.length, setup: !state.configured }),
+    ),
+
+    ...setupRoutes({ config, state, reload, cors, guard, originAllowed, authorized }),
 
     '/api/config': guard(() =>
       json({
+        setupNeeded: !state.configured,
         refreshMs: config.refreshMs,
         terminal: { enabled: config.terminal.enabled },
         commands: config.commands,
         services: config.services,
+        // Always the effective text — the built-in default when the config
+        // leaves it null — so a new stack never needs a client-side fallback.
         stacks: {
-          template: config.stacks.template,
-          envTemplate: config.stacks.envTemplate,
+          template: effectiveTemplate(config.stacks),
+          envTemplate: effectiveEnvTemplate(config.stacks),
+          templateIsDefault: config.stacks.template === null,
+          // Shown on the Settings page's Stacks row; null = stacks are off.
+          dir: config.stacks.dir,
         },
         // The home page flags the same disk level the alerts use, so the two
         // never disagree about what "almost full" means.
@@ -343,7 +468,8 @@ const server = Bun.serve<Session, {}>({
 
     '/api/stacks/stream': (req, server) => {
       if (!config.stacks.enabled) return fail('stacks are disabled', 403)
-      if (!authorized(req)) return fail('unauthorized', 401)
+      const refused = refuseUpgrade(req)
+      if (refused) return refused
       const name = new URL(req.url).searchParams.get('name') ?? ''
       if (server.upgrade(req, { data: { kind: 'stack', name } })) return undefined as never
       return new Response('Expected a WebSocket upgrade', { status: 426 })
@@ -396,7 +522,8 @@ const server = Bun.serve<Session, {}>({
 
     '/pty': (req, server) => {
       if (!config.terminal.enabled) return fail('terminal is disabled', 403)
-      if (!authorized(req)) return fail('unauthorized', 401)
+      const refused = refuseUpgrade(req)
+      if (refused) return refused
       if (server.upgrade(req, { data: { kind: 'pty', label: '' } })) return undefined as never
       return new Response('Expected a WebSocket upgrade', { status: 426 })
     },
@@ -455,7 +582,41 @@ const server = Bun.serve<Session, {}>({
   },
 })
 
-const alertsTask = startAlerts(config)
+let alertsTask = startAlerts(config)
+
+/**
+ * Load the config file again and apply it in place — what setup and Settings
+ * call after writing. Glances caches are dropped for nodes that went away or
+ * are now reached differently, and the alert timer restarts on the new
+ * settings (its per-condition state is kept). server.* still needs a restart.
+ */
+async function reload() {
+  const next = await loadConfig()
+  const before = new Map(nodesById)
+  const { server: _startupOnly, ...rest } = next.config
+  Object.assign(config, rest)
+
+  nodesById.clear()
+  for (const node of config.nodes) nodesById.set(node.id, node)
+  for (const [id, old] of before) {
+    const now = nodesById.get(id)
+    const same =
+      now &&
+      now.url === old.url &&
+      now.api === old.api &&
+      now.username === old.username &&
+      now.password === old.password
+    if (!same) forgetNode(id)
+  }
+
+  state.configured = next.configured
+  state.source = next.source
+  alertsTask?.stop()
+  alertsTask = startAlerts(config)
+  console.log(
+    `[config] reloaded ${next.source}: ${config.nodes.map((n) => n.id).join(', ') || 'no nodes'}`,
+  )
+}
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
@@ -466,9 +627,10 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
 
 const warn = process.getuid?.() === 0 ? '  (running as root — keep this bound to your tailnet)' : ''
 console.log(`helm listening on http://${config.server.host}:${server.port}${warn}`)
-console.log(`  config: ${source}`)
+console.log(`  config: ${state.source}`)
 console.log(`  nodes:  ${config.nodes.map((n) => `${n.id} → ${n.url}`).join(', ') || 'none'}`)
 console.log(`  auth:   ${config.auth.token ? 'token required' : 'open (no token set)'}`)
+console.log(`  origins: same host${allowedOrigins.size ? ` + ${[...allowedOrigins].join(', ')}` : ' only'}`)
 console.log(`  static: ${hasDist ? DIST : 'not built — use the Vite dev server'}`)
 console.log(
   `  alerts: ${
@@ -477,3 +639,9 @@ console.log(
       : 'off'
   }`,
 )
+if (setup) {
+  console.log(`  setup:  not configured yet — open the app and enter setup code ${setup.code}`)
+  console.log(
+    `          (${setup.saved ? `also in ${setup.path}` : `could not save it to ${setup.path}`}; the config will be written to ${resolve(configWriteTarget(loaded.path))})`,
+  )
+}

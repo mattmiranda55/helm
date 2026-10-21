@@ -47,13 +47,13 @@ export async function nodeIsLocal(node: NodeConfig): Promise<boolean> {
   }
 }
 
-async function run(engine: string, args: string[]) {
+async function run(engine: string, args: string[], timeoutMs = TIMEOUT_MS) {
   const proc = Bun.spawn([engine, ...args], { stdout: 'pipe', stderr: 'pipe' })
   const timer = setTimeout(() => {
     try {
       proc.kill()
     } catch {}
-  }, TIMEOUT_MS)
+  }, timeoutMs)
 
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
@@ -103,4 +103,90 @@ export async function logs(
   // Container stdout and stderr both matter, and the engine keeps them split.
   const { stdout, stderr } = await run(engine, ['logs', '--tail', String(tail), name])
   return { name, engine, tail, text: (stdout + stderr).trimEnd() || '(no output)' }
+}
+
+export type LocalContainer = { name: string; image: string | null; status: string; ports: number[] }
+
+/** Distinct published host ports, from either engine's way of saying it. */
+function hostPorts(ports: unknown): number[] {
+  const found = new Set<number>()
+  if (Array.isArray(ports)) {
+    // podman: [{ host_ip, container_port, host_port, range, protocol }]
+    for (const entry of ports as any[]) {
+      const port = Number(entry?.host_port ?? entry?.hostPort ?? entry?.PublicPort)
+      if (Number.isInteger(port) && port > 0) found.add(port)
+    }
+  } else if (typeof ports === 'string') {
+    // docker: "0.0.0.0:8096->8096/tcp, :::8096->8096/tcp, 0.0.0.0:7000-7002->7000-7002/tcp"
+    for (const match of ports.matchAll(/:(\d+)(?:-\d+)?->/g)) found.add(Number(match[1]))
+  }
+  return [...found].sort((a, b) => a - b)
+}
+
+/**
+ * Every container on this machine, running or not, with the host ports it
+ * publishes — what first-run setup uses to suggest apps and their URLs.
+ * Argv-only like everything else here. Empty when there is no engine or it
+ * cannot be asked (a rootless podman with no user session, say).
+ */
+export async function listLocalContainers(
+  engineBin?: string | null,
+): Promise<{ engine: string | null; containers: LocalContainer[] }> {
+  const engine = resolveEngine(engineBin)
+  if (!engine) return { engine: null, containers: [] }
+  const name = engine.split('/').pop() ?? engine
+  const podman = name.includes('podman')
+  let stdout = ''
+  try {
+    const result = await run(
+      engine,
+      ['ps', '-a', '--format', podman ? 'json' : '{{json .}}'],
+      10_000,
+    )
+    if (result.code !== 0) {
+      console.warn(`[containers] ${name} ps exited ${result.code}: ${result.stderr.trim()}`)
+      return { engine: name, containers: [] }
+    }
+    stdout = result.stdout
+  } catch (error) {
+    console.warn(`[containers] ${name} ps failed: ${(error as Error).message}`)
+    return { engine: name, containers: [] }
+  }
+
+  // podman prints one JSON array; docker (and podman with a Go template)
+  // prints one object per line.
+  let entries: any[] = []
+  const text = stdout.trim()
+  try {
+    const parsed = JSON.parse(text || '[]')
+    entries = Array.isArray(parsed) ? parsed : [parsed]
+  } catch {
+    entries = text
+      .split('\n')
+      .map((line) => {
+        try {
+          return JSON.parse(line)
+        } catch {
+          return null
+        }
+      })
+      .filter(Boolean)
+  }
+
+  const containers = entries
+    .map((entry: any): LocalContainer | null => {
+      const names = Array.isArray(entry?.Names) ? entry.Names : String(entry?.Names ?? '').split(',')
+      const containerName = String(names[0] ?? '').replace(/^\//, '').trim()
+      if (!containerName) return null
+      return {
+        name: containerName,
+        image: entry.Image ? String(entry.Image) : null,
+        status: String(entry.State ?? entry.Status ?? 'unknown').toLowerCase(),
+        ports: hostPorts(entry.Ports),
+      }
+    })
+    .filter((entry): entry is LocalContainer => entry !== null)
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  return { engine: name, containers }
 }

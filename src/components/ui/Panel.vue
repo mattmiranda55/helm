@@ -1,5 +1,10 @@
 <script setup>
-/** A section card on the machine page. */
+/**
+ * A section card on the machine page. Hand-rolled rather than an ion-card:
+ * it holds charts and meters, matches the machine cards on the home page, and
+ * ion-card's iOS look (inset margins, shadow, 28px title) would need undoing.
+ * Header actions go in the `actions` slot as ion-buttons.
+ */
 defineProps({
   title: { type: String, required: true },
 })
@@ -32,7 +37,13 @@ defineProps({
   gap: 12px;
 }
 .panel-title {
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 700;
+}
+/* A clear header button keeps its tap target but lines its text up with the
+ * card's edge, as a section header's trailing action does on iOS. */
+.panel-head :slotted(ion-button[fill='clear']) {
+  margin-block: -6px;
+  margin-inline-end: -10px;
 }
 </style>

@@ -15,8 +15,12 @@ import {
  *
  * up/down/restart start a job on the server that outlives this page; its
  * output is followed over a WebSocket while the stack's sheet is open.
+ *
+ * `active` pauses the polling (but keeps the last list) while the page is off
+ * screen — Ionic keeps the page mounted after you leave it. Coming back loads
+ * straight away rather than up to 15s later.
  */
-export function useStacks(enabled) {
+export function useStacks(enabled, active = true) {
   const stacks = shallowRef([])
   const error = shallowRef(null)
   const busy = shallowRef(null) // stack name with a job running
@@ -90,13 +94,14 @@ export function useStacks(enabled) {
   }
 
   watch(
-    () => toValue(enabled),
-    (on) => {
+    () => [toValue(enabled), toValue(active)],
+    ([on, visible]) => {
       clearInterval(timer)
       if (!on) {
         stacks.value = []
         return
       }
+      if (!visible) return
       load()
       // podman ps is local and cheap; stale status on a control panel is worse.
       timer = setInterval(load, 15_000)

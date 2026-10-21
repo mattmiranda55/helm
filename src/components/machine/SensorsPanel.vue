@@ -37,7 +37,7 @@ const levelColor = (s) =>
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  font-size: 14px;
+  font-size: 0.875rem;
   border-bottom: 1px solid var(--color-hairline);
   padding-bottom: 6px;
 }

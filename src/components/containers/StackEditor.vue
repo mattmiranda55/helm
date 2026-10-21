@@ -7,32 +7,32 @@
  * spaces because YAML is indentation-sensitive and iOS has no Tab key, and the
  * usual iOS input assistance is turned off — autocapitalise would happily turn
  * `services:` into `Services:`.
+ *
+ * The Save buttons aren't in here: they live in the stack sheet's footer,
+ * which stays put while this scrolls, and call `submit()` (exposed below).
+ * Submitting goes through the form so the browser still checks the name.
  */
-import { shallowRef, watch } from 'vue'
+import { IonInput, IonItem, IonList } from '@ionic/vue'
+import { shallowRef, useTemplateRef, watch } from 'vue'
 
 const props = defineProps({
   /** null = creating a new stack. */
   name: { type: String, default: null },
   compose: { type: String, default: '' },
   env: { type: String, default: '' },
-  busy: { type: Boolean, default: false },
   error: { type: String, default: null },
-  /** Templates for a new stack; `{{name}}` is substituted as you type. */
-  template: { type: String, default: null },
-  envTemplate: { type: String, default: null },
+  /**
+   * Templates for a new stack; `{{name}}` is substituted as you type. Always
+   * the effective text from /api/config (the server's built-in default unless
+   * Settings → Stacks has a custom one), so there is no fallback here.
+   */
+  template: { type: String, default: '' },
+  envTemplate: { type: String, default: '' },
 })
 
-const emit = defineEmits(['save', 'cancel'])
+const emit = defineEmits(['save'])
 
-/** Only used when the server supplies no template of its own. */
-const FALLBACK = `services:
-  {{name}}:
-    image:
-    container_name: {{name}}
-    restart: always
-`
-
-const render = (source, name) => (source ?? FALLBACK).replaceAll('{{name}}', name || 'app')
+const render = (source, name) => (source ?? '').replaceAll('{{name}}', name || 'app')
 
 const draftName = shallowRef(props.name ?? '')
 const draftCompose = shallowRef(props.compose || (props.name ? '' : render(props.template, '')))
@@ -71,26 +71,53 @@ const payload = () => ({
   compose: draftCompose.value,
   env: draftEnv.value,
 })
+
+const form = useTemplateRef('form')
+let deployNext = false
+
+/** Save, and with `deploy` start the stack once saved. Return in the name field saves without starting. */
+function submit(deploy = false) {
+  deployNext = deploy
+  form.value?.requestSubmit()
+}
+
+function onSubmit() {
+  emit('save', { payload: payload(), deploy: deployNext })
+  deployNext = false
+}
+
+defineExpose({ submit })
 </script>
 
 <template>
-  <form class="editor" @submit.prevent="emit('save', { payload: payload(), deploy: false })">
-    <label v-if="!name" class="field">
-      <span class="field-label">Name</span>
-      <input
-        v-model="draftName"
-        name="stack-name"
-        type="text"
-        placeholder="my-stack…"
-        required
-        autocapitalize="none"
-        autocorrect="off"
-        autocomplete="off"
-        spellcheck="false"
-        class="input num"
-      />
-    </label>
+  <form ref="form" class="editor" @submit.prevent="onSubmit">
+    <ion-list v-if="!name" inset class="name">
+      <ion-item>
+        <!-- Modern form syntax: the label belongs to the ion-input itself
+             (https://ionicframework.com/docs/api/input#labels). It comes
+             through the `label` slot rather than the `label` prop only so it
+             can keep the text face while the typed name is mono. In Ionic 9
+             autocorrect is a boolean (already false by default), so it is
+             bound, never written as the string "off" — that would turn it on. -->
+        <ion-input
+          v-model="draftName"
+          name="stack-name"
+          placeholder="my-stack…"
+          required
+          autocapitalize="off"
+          autocomplete="off"
+          :autocorrect="false"
+          :spellcheck="false"
+          class="num"
+        >
+          <div slot="label" class="name-label">Name</div>
+        </ion-input>
+      </ion-item>
+    </ion-list>
 
+    <!-- Plain textareas, labelled by the <label> around them. These are native
+         elements, so autocorrect takes the HTML (Safari) string "off" — the
+         Ionic 9 boolean applies to ion-input/ion-searchbar only. -->
     <label class="field">
       <span class="field-label num">compose.yaml</span>
       <textarea
@@ -123,13 +150,6 @@ const payload = () => ({
 
     <p v-if="error" class="error num">{{ error }}</p>
 
-    <div class="actions">
-      <button type="submit" class="btn" :disabled="busy">Save file</button>
-      <button type="button" class="btn btn-primary" :disabled="busy" @click="emit('save', { payload: payload(), deploy: true })">
-        {{ busy ? 'Saving…' : 'Save and start' }}
-      </button>
-      <button type="button" class="text-link" @click="emit('cancel')">Cancel</button>
-    </div>
     <p class="hint">
       helm checks the file with <code class="num">compose config</code> before saving and keeps the
       previous version as a <code class="num">.bak</code> file.
@@ -149,15 +169,21 @@ const payload = () => ({
   gap: 6px;
 }
 .field-label {
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--color-muted);
 }
-.input {
-  border: 1px solid var(--color-hairline);
-  background: var(--color-plane);
+/* One-row inset list, like an iOS settings field, on the sheet's own padding. */
+ion-list.name {
+  margin: 0;
   border-radius: var(--radius-row);
-  padding: 10px 12px;
-  font-size: 16px;
+}
+/* The name is an identifier, so the input wears the mono face (.num); the
+ * slotted label goes back to the text face. ion-input has no shadow parts and
+ * its inner classes changed in Ionic 9, so style the host and the slot, not
+ * `.native-input`. */
+.name-label {
+  font-family: var(--font-sans);
+  letter-spacing: normal;
 }
 .code {
   width: 100%;
@@ -168,22 +194,16 @@ const payload = () => ({
   border-radius: 8px;
   padding: 12px;
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 0.7812rem;
   line-height: 1.5;
 }
 .error {
   color: var(--color-critical);
-  font-size: 12px;
+  font-size: 0.75rem;
   white-space: pre-wrap;
-}
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 .hint {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 </style>

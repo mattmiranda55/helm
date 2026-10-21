@@ -1,0 +1,216 @@
+/*
+ * Ionic's theme, pointed at helm's own tokens (main.css) so Ionic components
+ * and hand-rolled markup draw from one palette. Color means data or state
+ * only: "primary" is plain ink, not a brand accent.
+ *
+ * Theming Ionic is done entirely through these global CSS variables (and
+ * per-component ones like --background); components read them inside their
+ * shadow DOM, so nothing here needs to reach into a component.
+ * https://ionicframework.com/docs/theming/basics
+ * https://ionicframework.com/docs/theming/themes
+ *
+ * The ion-color-* sets need literal values (Ionic derives -rgb/-shade/-tint
+ * from them, https://ionicframework.com/docs/theming/colors), so they are
+ * spelled out per scheme rather than var()'d.
+ *
+ * Specificity: the dark palette imported in main.ts sets its variables on
+ * `:root.ios` / `:root.md` (and `:root.ios ion-modal`), which beats a plain
+ * `:root`. The dark-mode docs call for a selector at least that specific to
+ * override it, so each block lists all three; without that, items, cards and
+ * sheets come out pure black. (Not bare `.ios`: Ionic puts that class on
+ * every component, not just <html>.)
+ * https://ionicframework.com/docs/theming/dark-mode
+ */
+:root,
+:root.ios,
+:root.md {
+  --ion-font-family: var(--font-sans);
+  --ion-background-color: var(--color-plane);
+  --ion-background-color-rgb: 236, 238, 240;
+  --ion-text-color: var(--color-ink);
+  --ion-text-color-rgb: 21, 24, 27;
+  --ion-border-color: var(--color-hairline);
+  --ion-item-background: var(--color-surface);
+  --ion-card-background: var(--color-surface);
+  --ion-toolbar-background: var(--color-plane);
+  --ion-toolbar-border-color: transparent;
+  --ion-toolbar-color: var(--color-ink);
+  --ion-tab-bar-background: var(--color-surface);
+  --ion-tab-bar-border-color: var(--color-hairline);
+  --ion-tab-bar-color: var(--color-muted);
+  --ion-tab-bar-color-selected: var(--color-ink);
+  --ion-backdrop-color: rgb(10 12 14);
+  --ion-backdrop-opacity: 0.4;
+
+  --ion-color-primary: #15181b;
+  --ion-color-primary-rgb: 21, 24, 27;
+  --ion-color-primary-contrast: #eceef0;
+  --ion-color-primary-contrast-rgb: 236, 238, 240;
+  --ion-color-primary-shade: #121518;
+  --ion-color-primary-tint: #2c2f32;
+
+  --ion-color-medium: #6b727a;
+  --ion-color-medium-rgb: 107, 114, 122;
+  --ion-color-medium-contrast: #ffffff;
+  --ion-color-medium-contrast-rgb: 255, 255, 255;
+  --ion-color-medium-shade: #5e646b;
+  --ion-color-medium-tint: #7a8087;
+
+  --ion-color-success: #0a8a0a;
+  --ion-color-success-rgb: 10, 138, 10;
+  --ion-color-success-contrast: #ffffff;
+  --ion-color-success-contrast-rgb: 255, 255, 255;
+  --ion-color-success-shade: #097909;
+  --ion-color-success-tint: #239623;
+
+  --ion-color-warning: #a86f00;
+  --ion-color-warning-rgb: 168, 111, 0;
+  --ion-color-warning-contrast: #ffffff;
+  --ion-color-warning-contrast-rgb: 255, 255, 255;
+  --ion-color-warning-shade: #946200;
+  --ion-color-warning-tint: #b17d1a;
+
+  --ion-color-danger: #c02f2f;
+  --ion-color-danger-rgb: 192, 47, 47;
+  --ion-color-danger-contrast: #ffffff;
+  --ion-color-danger-contrast-rgb: 255, 255, 255;
+  --ion-color-danger-shade: #a92929;
+  --ion-color-danger-tint: #c64444;
+
+  /* Stepped colors: the in-between greys components use for borders,
+   * placeholders, inactive states. Ionic's defaults are mixed from #fff and
+   * #000; the docs say to regenerate them whenever the background or text
+   * color changes. Background steps mix plane → ink, text steps ink → plane,
+   * by the step number in tenths of a percent.
+   * https://ionicframework.com/docs/theming/themes#stepped-colors */
+  --ion-background-color-step-50: #e1e3e5;
+  --ion-background-color-step-100: #d7d9db;
+  --ion-background-color-step-150: #ccced0;
+  --ion-background-color-step-200: #c1c3c5;
+  --ion-background-color-step-250: #b6b9bb;
+  --ion-background-color-step-300: #acaeb0;
+  --ion-background-color-step-350: #a1a3a5;
+  --ion-background-color-step-400: #96989b;
+  --ion-background-color-step-450: #8b8e90;
+  --ion-background-color-step-500: #818386;
+  --ion-background-color-step-550: #76787b;
+  --ion-background-color-step-600: #6b6e70;
+  --ion-background-color-step-650: #606366;
+  --ion-background-color-step-700: #56585b;
+  --ion-background-color-step-750: #4b4e50;
+  --ion-background-color-step-800: #404346;
+  --ion-background-color-step-850: #35383b;
+  --ion-background-color-step-900: #2b2d30;
+  --ion-background-color-step-950: #202326;
+  --ion-text-color-step-50: #202326;
+  --ion-text-color-step-100: #2b2d30;
+  --ion-text-color-step-150: #35383b;
+  --ion-text-color-step-200: #404346;
+  --ion-text-color-step-250: #4b4e50;
+  --ion-text-color-step-300: #56585b;
+  --ion-text-color-step-350: #606366;
+  --ion-text-color-step-400: #6b6e70;
+  --ion-text-color-step-450: #76787b;
+  --ion-text-color-step-500: #818386;
+  --ion-text-color-step-550: #8b8e90;
+  --ion-text-color-step-600: #96989b;
+  --ion-text-color-step-650: #a1a3a5;
+  --ion-text-color-step-700: #acaeb0;
+  --ion-text-color-step-750: #b6b9bb;
+  --ion-text-color-step-800: #c1c3c5;
+  --ion-text-color-step-850: #ccced0;
+  --ion-text-color-step-900: #d7d9db;
+  --ion-text-color-step-950: #e1e3e5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root,
+  :root.ios,
+  :root.md {
+    --ion-background-color-rgb: 26, 30, 34;
+    --ion-text-color-rgb: 238, 240, 242;
+
+    --ion-color-primary: #eef0f2;
+    --ion-color-primary-rgb: 238, 240, 242;
+    --ion-color-primary-contrast: #1a1e22;
+    --ion-color-primary-contrast-rgb: 26, 30, 34;
+    --ion-color-primary-shade: #d1d3d5;
+    --ion-color-primary-tint: #f0f2f3;
+
+    --ion-color-medium: #8a929a;
+    --ion-color-medium-rgb: 138, 146, 154;
+    --ion-color-medium-contrast: #000000;
+    --ion-color-medium-contrast-rgb: 0, 0, 0;
+    --ion-color-medium-shade: #798088;
+    --ion-color-medium-tint: #969da4;
+
+    --ion-color-success: #2bb32b;
+    --ion-color-success-rgb: 43, 179, 43;
+    --ion-color-success-contrast: #000000;
+    --ion-color-success-contrast-rgb: 0, 0, 0;
+    --ion-color-success-shade: #269e26;
+    --ion-color-success-tint: #40bb40;
+
+    --ion-color-warning: #fab219;
+    --ion-color-warning-rgb: 250, 178, 25;
+    --ion-color-warning-contrast: #000000;
+    --ion-color-warning-contrast-rgb: 0, 0, 0;
+    --ion-color-warning-shade: #dc9d16;
+    --ion-color-warning-tint: #fbba30;
+
+    --ion-color-danger: #e05252;
+    --ion-color-danger-rgb: 224, 82, 82;
+    --ion-color-danger-contrast: #000000;
+    --ion-color-danger-contrast-rgb: 0, 0, 0;
+    --ion-color-danger-shade: #c54848;
+    --ion-color-danger-tint: #e36363;
+
+    --ion-background-color-step-50: #25292c;
+    --ion-background-color-step-100: #2f3337;
+    --ion-background-color-step-150: #3a3e41;
+    --ion-background-color-step-200: #44484c;
+    --ion-background-color-step-250: #4f5356;
+    --ion-background-color-step-300: #5a5d60;
+    --ion-background-color-step-350: #64686b;
+    --ion-background-color-step-400: #6f7275;
+    --ion-background-color-step-450: #797d80;
+    --ion-background-color-step-500: #84878a;
+    --ion-background-color-step-550: #8f9294;
+    --ion-background-color-step-600: #999c9f;
+    --ion-background-color-step-650: #a4a7a9;
+    --ion-background-color-step-700: #aeb1b4;
+    --ion-background-color-step-750: #b9bcbe;
+    --ion-background-color-step-800: #c4c6c8;
+    --ion-background-color-step-850: #ced1d3;
+    --ion-background-color-step-900: #d9dbdd;
+    --ion-background-color-step-950: #e3e6e8;
+    --ion-text-color-step-50: #e3e6e8;
+    --ion-text-color-step-100: #d9dbdd;
+    --ion-text-color-step-150: #ced1d3;
+    --ion-text-color-step-200: #c4c6c8;
+    --ion-text-color-step-250: #b9bcbe;
+    --ion-text-color-step-300: #aeb1b4;
+    --ion-text-color-step-350: #a4a7a9;
+    --ion-text-color-step-400: #999c9f;
+    --ion-text-color-step-450: #8f9294;
+    --ion-text-color-step-500: #84878a;
+    --ion-text-color-step-550: #797c80;
+    --ion-text-color-step-600: #6f7275;
+    --ion-text-color-step-650: #64686b;
+    --ion-text-color-step-700: #5a5d60;
+    --ion-text-color-step-750: #4f5356;
+    --ion-text-color-step-800: #44484c;
+    --ion-text-color-step-850: #3a3e41;
+    --ion-text-color-step-900: #2f3337;
+    --ion-text-color-step-950: #25292c;
+  }
+}
+
+/* Ionic gives modals their own, lighter background in dark mode; helm's
+ * sheets are the surface color in both themes. */
+:root.ios ion-modal,
+:root.md ion-modal {
+  --ion-background-color: var(--color-surface);
+  --ion-toolbar-background: var(--color-surface);
+  --ion-item-background: var(--color-raised);
+}

@@ -3,6 +3,8 @@
  * Top processes, off by default: listing them is the most expensive thing
  * Glances can be asked for, so it only runs while this is open.
  */
+import { IonButton, IonIcon, IonSpinner } from '@ionic/vue'
+import { chevronDown, chevronUp } from 'ionicons/icons'
 import Panel from '@/components/ui/Panel.vue'
 
 defineProps({
@@ -17,12 +19,15 @@ const emit = defineEmits(['toggle'])
 <template>
   <Panel title="Processes">
     <template #actions>
-      <button type="button" class="btn" :aria-expanded="open" @click="emit('toggle')">
+      <!-- A clear button, like a section header's "Show All"; the chevron says it
+           expands in place rather than going somewhere. -->
+      <ion-button fill="clear" size="small" :aria-expanded="String(open)" @click="emit('toggle')">
         {{ open ? 'Hide' : 'Show top processes' }}
-      </button>
+        <ion-icon slot="end" :icon="open ? chevronUp : chevronDown" aria-hidden="true" />
+      </ion-button>
     </template>
 
-    <div v-if="open" class="overflow-x-auto">
+    <div v-if="open" class="scroll-x">
       <table class="table">
         <thead>
           <tr><th>Name</th><th>CPU</th><th>Memory</th></tr>
@@ -34,7 +39,7 @@ const emit = defineEmits(['toggle'])
             <td class="num">{{ process.memory.toFixed(1) }}%</td>
           </tr>
           <tr v-if="!processes.length">
-            <td colspan="3" class="loading">Loading…</td>
+            <td colspan="3" class="loading"><ion-spinner name="lines-small" />Loading…</td>
           </tr>
         </tbody>
       </table>
@@ -47,17 +52,20 @@ const emit = defineEmits(['toggle'])
 </template>
 
 <style scoped>
+.scroll-x {
+  overflow-x: auto;
+}
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 .table th {
   text-align: left;
   font-weight: 500;
   color: var(--color-muted);
   padding: 6px 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .table td {
   padding: 7px 0;
@@ -73,10 +81,18 @@ const emit = defineEmits(['toggle'])
 .table th:not(:first-child),
 .table td:not(:first-child) {
   text-align: right;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
-.loading {
+/* Same specificity as the right-aligned columns above, and later, so no !important. */
+.table td.loading {
   color: var(--color-muted);
-  text-align: left !important;
+  text-align: left;
+}
+.loading ion-spinner {
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  vertical-align: -3px;
+  color: var(--color-muted);
 }
 </style>

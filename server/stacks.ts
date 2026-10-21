@@ -19,6 +19,99 @@ import type { StacksConfig } from './config'
 
 const COMPOSE_FILES = ['compose.yaml', 'compose.yml', 'docker-compose.yml', 'docker-compose.yaml']
 
+// ---------------------------------------------------------------- defaults
+//
+// What a new stack starts from when the config leaves `stacks.template` /
+// `stacks.envTemplate` / `stacks.command` null. Null in the file means "the
+// built-in default", and setup/Settings store null when what you submit equals
+// it — so an improvement here reaches everyone who never customised theirs.
+
+/**
+ * A deliberately generic starting point: nothing tied to one machine — no
+ * external networks, no absolute paths. The bind mount is relative to the
+ * stack's own directory, which is where compose runs, so it works in any
+ * stacks dir.
+ */
+export const DEFAULT_STACK_TEMPLATE = `services:
+  {{name}}:
+    # The image to run, e.g. nginx:latest or ghcr.io/owner/app:1.2
+    image:
+    container_name: {{name}}
+    restart: unless-stopped
+    # ports:
+    #   - "8080:80"
+    # volumes:
+    #   - ./data:/data   # kept in this stack's own folder
+    # environment:
+    #   TZ: UTC
+`
+
+export const DEFAULT_ENV_TEMPLATE = `# Variables for compose.yaml, one KEY=value per line; use them there as \${KEY}.
+`
+
+const baseName = (bin: string) => bin.split('/').pop()?.toLowerCase() ?? ''
+
+/**
+ * `<engine> compose`, for whichever engine this machine has: the configured
+ * containers.command when it names podman or docker, else podman then docker
+ * on PATH (the same order container control uses), else `podman compose`.
+ */
+export function defaultComposeCommand(containersCommand?: string | null): string[] {
+  if (containersCommand) {
+    const name = baseName(containersCommand)
+    if (name.includes('podman') || name.includes('docker')) return [containersCommand, 'compose']
+  }
+  if (Bun.which('podman')) return ['podman', 'compose']
+  if (Bun.which('docker')) return ['docker', 'compose']
+  return ['podman', 'compose']
+}
+
+/** The templates a new stack actually starts from. */
+export const effectiveTemplate = (config: StacksConfig) => config.template ?? DEFAULT_STACK_TEMPLATE
+export const effectiveEnvTemplate = (config: StacksConfig) => config.envTemplate ?? DEFAULT_ENV_TEMPLATE
+
+/** Line endings and trailing whitespace don't make a template "custom". */
+export const normalizeTemplate = (text: string) =>
+  text
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .join('\n')
+    .trimEnd()
+
+/**
+ * Where stacks usually live, in the order setup suggests them — Dockge's own
+ * default first. Only directories that exist are returned, each with how many
+ * compose projects it already holds.
+ */
+export async function findStackDirs(): Promise<{ path: string; projects: number }[]> {
+  const home = process.env.HOME
+  const candidates = [
+    '/opt/stacks',
+    ...(home ? [join(home, 'stacks'), join(home, 'docker')] : []),
+    '/srv/stacks',
+  ]
+  const found: { path: string; projects: number }[] = []
+  for (const path of [...new Set(candidates.map((entry) => resolve(entry)))]) {
+    if (!(await stat(path).catch(() => null))?.isDirectory()) continue
+    found.push({ path, projects: await countProjects(path) })
+  }
+  return found
+}
+
+/** Subdirectories holding a compose file, named as a stack could be. */
+export async function countProjects(dir: string): Promise<number> {
+  const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
+  let count = 0
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !STACK_NAME.test(entry.name)) continue
+    if (await composeFileIn(join(dir, entry.name))) count++
+  }
+  return count
+}
+
+const STACK_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+
 export type StackAction = 'up' | 'down' | 'restart'
 const ACTIONS: StackAction[] = ['up', 'down', 'restart']
 export const isStackAction = (v: string): v is StackAction => ACTIONS.includes(v as StackAction)
@@ -50,7 +143,7 @@ type PodmanContainer = {
  */
 export function stackDir(config: StacksConfig, name: string): string {
   if (!config.dir) throw new Error('stacks.dir is not configured')
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)) throw new Error(`invalid stack name "${name}"`)
+  if (!STACK_NAME.test(name)) throw new Error(`invalid stack name "${name}"`)
 
   const root = resolve(config.dir)
   const path = resolve(join(root, name))
@@ -347,6 +440,10 @@ export async function createStack(
 export async function deleteStack(config: StacksConfig, name: string) {
   const path = stackDir(config, name)
   if (!(await stat(path).catch(() => null))) throw new Error(`no stack named "${name}"`)
+  // Only ever remove a directory that is actually a stack. stacks.dir is set
+  // from the UI now, so a dir that also holds other folders must not turn
+  // DELETE into "rm -rf any subdirectory".
+  if (!(await composeFileIn(path))) throw new Error(`"${name}" is not a stack (no compose file)`)
 
   const proc = Bun.spawn([...config.command, 'down', '-v'], {
     cwd: path,

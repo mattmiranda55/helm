@@ -31,7 +31,7 @@ const series = computed(() => [
       <span><i style="background: var(--color-series-1)" />Down</span>
       <span><i style="background: var(--color-series-2)" />Up</span>
     </div>
-    <div class="overflow-x-auto">
+    <div class="scroll-x">
       <table v-if="interfaces.length" class="table">
         <thead>
           <tr><th>Interface</th><th>Down</th><th>Up</th><th>Total</th></tr>
@@ -50,9 +50,12 @@ const series = computed(() => [
 </template>
 
 <style scoped>
+.scroll-x {
+  overflow-x: auto;
+}
 .say {
   color: var(--color-ink-2);
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 .say b {
   color: var(--color-ink);
@@ -61,7 +64,7 @@ const series = computed(() => [
 .legend {
   display: flex;
   gap: 16px;
-  font-size: 13.5px;
+  font-size: 0.8438rem;
   color: var(--color-ink-2);
 }
 .legend span {
@@ -77,7 +80,7 @@ const series = computed(() => [
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .table th {
   text-align: left;

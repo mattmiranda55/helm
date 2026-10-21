@@ -2,6 +2,14 @@
 /**
  * Home-screen style grid of apps that open in a new tab. Sized to the screen
  * width: 4 across on a phone, 6 and 8 on wider screens.
+ *
+ * Tiles stay plain target="_blank" links rather than ion-buttons: they're
+ * custom icon tiles, and a new-window link means a service opens beside helm
+ * (a browser tab, or Safari from the home-screen app) instead of replacing it.
+ *
+ * The press shrink keys off Ionic's .ion-activated rather than :active: Ionic
+ * sets it a beat after the touch lands and clears it once the touch becomes a
+ * scroll, so a tile doesn't flash while you scroll past it.
  */
 import AppIcon from '@/components/ui/AppIcon.vue'
 
@@ -14,7 +22,7 @@ defineProps({
 <template>
   <ul class="grid">
     <li v-for="{ service, flag } in apps" :key="service.name">
-      <a class="tile" :href="service.url" target="_blank" rel="noopener noreferrer" :title="service.description || service.name">
+      <a class="tile ion-activatable" :href="service.url" target="_blank" rel="noopener noreferrer" :title="service.description || service.name">
         <AppIcon :service="service" :flag="flag" />
         <span class="name">{{ service.name }}</span>
       </a>
@@ -54,11 +62,11 @@ defineProps({
 .tile:hover {
   background: var(--color-sunken);
 }
-.tile:active :deep(.badge) {
+.tile.ion-activated :deep(.badge) {
   transform: scale(0.96);
 }
 .name {
-  font-size: 12px;
+  font-size: 0.75rem;
   letter-spacing: -0.01em;
   color: var(--color-ink-2);
   max-width: 100%;

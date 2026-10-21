@@ -1,7 +1,8 @@
 {
   "server": {
     "host": "127.0.0.1",
-    "port": 3001
+    "port": 3001,
+    "allowedOrigins": []
   },
   "auth": {
     "token": null
@@ -82,12 +83,9 @@
   },
   "stacks": {
     "enabled": true,
-    "dir": "/home/you/stacks",
-    "command": [
-      "docker",
-      "compose"
-    ],
-    "template": "services:\n  {{name}}:\n    image:\n    container_name: {{name}}\n    restart: always\n    environment:\n      TZ: UTC\n    ports:\n      - 8080:8080\n    volumes:\n      # Absolute, under /home/you \u2014 a bare /homelab/... silently creates a\n      # second tree at the filesystem root instead.\n      - /home/you/stacks/{{name}}/data:/data\n    networks:\n      - proxy_net\n\nnetworks:\n  proxy_net:\n    external: true\n",
-    "envTemplate": "TZ=UTC\nPUID=1000\nPGID=1000\n"
+    "dir": "/opt/stacks",
+    "command": null,
+    "template": null,
+    "envTemplate": null
   }
 }

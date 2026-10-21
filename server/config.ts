@@ -2,13 +2,18 @@
  * Configuration loading + validation.
  *
  * Resolution order (first hit wins):
- *   1. $HELM_CONFIG                     — explicit path
+ *   1. $HELM_CONFIG                     — explicit path, and then the only one
  *   2. ./config.json                     — local dev, gitignored
  *   3. ~/.config/helm/config.json         — per-user
  *   4. /etc/helm/config.json              — installed service
  * Individual fields can be overridden by env vars (see below), which is what
  * the systemd unit uses so an install can be re-pointed without editing JSON.
+ *
+ * When none of these exist (and HELM_NODES is unset) helm is unconfigured and
+ * serves the first-run setup, which writes the file — see server/setup.ts.
  */
+
+import { defaultComposeCommand } from './stacks'
 
 export type NodeConfig = {
   /** URL-safe identifier, unique across nodes. */
@@ -109,15 +114,19 @@ export type StacksConfig = {
   enabled: boolean
   /** Directory of compose stacks — the same one Dockge is pointed at. */
   dir: string | null
-  /** Split command; `podman compose` by default, matching what you'd type. */
+  /**
+   * Split command, always resolved. null/absent in the file means the default:
+   * `podman compose` or `docker compose`, whichever engine this machine has
+   * (see defaultComposeCommand in server/stacks.ts).
+   */
   command: string[]
   /**
    * Starting point for a new stack. `{{name}}` is replaced with the stack name
-   * as it is typed, which is what keeps bind mounts pointing at the right
-   * absolute path instead of one that is a directory short.
+   * as it is typed. null = the built-in DEFAULT_STACK_TEMPLATE
+   * (server/stacks.ts) — kept null here so callers can tell "never customised".
    */
   template: string | null
-  /** Starting point for the new stack's .env. `{{name}}` works here too. */
+  /** Starting point for the new stack's .env. `{{name}}` works here too. null = built-in default. */
   envTemplate: string | null
 }
 
@@ -129,7 +138,16 @@ export type CommandConfig = {
 }
 
 export type Config = {
-  server: { host: string; port: number }
+  server: {
+    host: string
+    port: number
+    /**
+     * Browser origins, besides this server's own, allowed to call the API
+     * cross-origin and open its WebSockets. Exact origins only — never "*".
+     * Empty by default: the app is served by this server, so it is same-origin.
+     */
+    allowedOrigins: string[]
+  }
   /** When set, every API + WebSocket request must present this token. */
   auth: { token: string | null }
   terminal: {
@@ -151,15 +169,20 @@ export type Config = {
   services: ServiceConfig[]
 }
 
-const CONFIG_PATHS = [
-  process.env.HELM_CONFIG,
-  './config.json',
-  `${process.env.HOME ?? ''}/.config/helm/config.json`,
-  '/etc/helm/config.json',
-].filter(Boolean) as string[]
+/**
+ * Where config is looked for, first hit wins. Read once at startup.
+ *
+ * $HELM_CONFIG, when set, is the ONLY place looked: it is also where setup and
+ * Settings write (configWriteTarget), so falling through to another file while
+ * it doesn't exist yet would read one config and write a different one — and
+ * hide first-run setup behind, say, a stray ~/.config/helm/config.json.
+ */
+export const CONFIG_PATHS = process.env.HELM_CONFIG
+  ? [process.env.HELM_CONFIG]
+  : ['./config.json', `${process.env.HOME ?? ''}/.config/helm/config.json`, '/etc/helm/config.json']
 
 const DEFAULTS: Config = {
-  server: { host: '127.0.0.1', port: 3001 },
+  server: { host: '127.0.0.1', port: 3001, allowedOrigins: [] },
   auth: { token: null },
   terminal: { enabled: true, shell: null, args: [], cwd: null },
   alerts: {
@@ -190,6 +213,7 @@ const DEFAULTS: Config = {
   stacks: {
     enabled: true,
     dir: null,
+    // Resolved per machine in buildConfig; null/absent in the file = detected.
     command: ['podman', 'compose'],
     template: null,
     envTemplate: null,
@@ -201,13 +225,13 @@ const DEFAULTS: Config = {
   services: [],
 }
 
-class ConfigError extends Error {}
+export class ConfigError extends Error {}
 
-function slug(value: string): string {
+export function slug(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
-function normalizeNode(raw: any, index: number): NodeConfig {
+export function normalizeNode(raw: any, index: number): NodeConfig {
   if (!raw || typeof raw !== 'object') {
     throw new ConfigError(`nodes[${index}] must be an object`)
   }
@@ -235,7 +259,29 @@ function normalizeNode(raw: any, index: number): NodeConfig {
   }
 }
 
-function normalizeCommand(raw: any, index: number): CommandConfig {
+/**
+ * "scheme://host[:port]", lowercased, exactly as a browser sends it in the
+ * Origin header. Wildcards and the opaque "null" origin are refused outright:
+ * the terminal is a full shell, so this list must name real origins.
+ */
+function normalizeOrigin(raw: unknown, index: number): string {
+  const value = String(raw ?? '').trim().replace(/\/+$/, '').toLowerCase()
+  const fail = () =>
+    new ConfigError(`server.allowedOrigins[${index}] must be an exact origin like https://dash.example.ts.net, got "${raw}"`)
+  if (!value || value === 'null' || value.includes('*')) throw fail()
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    throw fail()
+  }
+  // URL.origin is "null" for custom schemes, so rebuild it by hand.
+  const origin = `${url.protocol}//${url.host}`
+  if (!url.host || origin !== value) throw fail()
+  return origin
+}
+
+export function normalizeCommand(raw: any, index: number): CommandConfig {
   if (!raw || typeof raw !== 'object') {
     throw new ConfigError(`commands[${index}] must be an object`)
   }
@@ -248,7 +294,7 @@ function normalizeCommand(raw: any, index: number): CommandConfig {
   }
 }
 
-function normalizeService(raw: any, index: number): ServiceConfig {
+export function normalizeService(raw: any, index: number): ServiceConfig {
   if (!raw || typeof raw !== 'object') {
     throw new ConfigError(`services[${index}] must be an object`)
   }
@@ -264,6 +310,41 @@ function normalizeService(raw: any, index: number): ServiceConfig {
     icon: raw.icon ? String(raw.icon) : undefined,
     favorite: raw.favorite === true,
   }
+}
+
+/**
+ * Null means "the built-in default" for command and both templates. The
+ * command is resolved here (it is what gets spawned); the templates stay null
+ * so the API can say whether they were ever customised.
+ */
+function normalizeStacks(config: Config, raw: any) {
+  if (raw !== undefined && raw !== null && (typeof raw !== 'object' || Array.isArray(raw))) {
+    throw new ConfigError('stacks must be an object')
+  }
+  const stacks = config.stacks
+  const command = raw?.command
+  if (command === undefined || command === null) {
+    stacks.command = defaultComposeCommand(config.containers.command)
+  } else if (
+    !Array.isArray(command) ||
+    command.length === 0 ||
+    command.some((part) => typeof part !== 'string' || !part.trim())
+  ) {
+    throw new ConfigError('stacks.command must be a non-empty list of strings, e.g. ["docker", "compose"]')
+  } else {
+    stacks.command = command.map((part: string) => part.trim())
+  }
+  for (const key of ['template', 'envTemplate'] as const) {
+    const value = stacks[key]
+    if (value === undefined) stacks[key] = null
+    else if (value !== null && typeof value !== 'string') {
+      throw new ConfigError(`stacks.${key} must be a string, or null for the built-in default`)
+    }
+  }
+  if (stacks.dir !== null && stacks.dir !== undefined && typeof stacks.dir !== 'string') {
+    throw new ConfigError('stacks.dir must be a path string or null')
+  }
+  stacks.dir = stacks.dir ? stacks.dir : null
 }
 
 function applyEnvOverrides(config: Config): Config {
@@ -309,24 +390,54 @@ function applyEnvOverrides(config: Config): Config {
   return config
 }
 
-export async function loadConfig(): Promise<{ config: Config; source: string }> {
-  let raw: any = {}
-  let source = 'defaults + env'
+/** True when the nodes come from HELM_NODES, so editing them in a file is moot. */
+export const nodesFromEnv = (): boolean => !!process.env.HELM_NODES
 
+/** The first config file that exists, parsed, or `{}` and null when there is none. */
+export async function readRawConfig(): Promise<{ raw: any; path: string | null }> {
   for (const path of CONFIG_PATHS) {
     const file = Bun.file(path)
     if (!(await file.exists())) continue
+    let raw: any
     try {
       raw = await file.json()
     } catch (error) {
       throw new ConfigError(`${path} is not valid JSON: ${(error as Error).message}`)
     }
-    source = path
-    break
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new ConfigError(`${path} must hold a JSON object`)
+    }
+    return { raw, path }
   }
+  return { raw: {}, path: null }
+}
 
+/**
+ * Where setup and Settings write: $HELM_CONFIG when set (the installed
+ * service), else the file that was loaded, else ./config.json (dev). None of
+ * these can be shadowed by an earlier entry in CONFIG_PATHS, so what is
+ * written is what the next load reads.
+ */
+export function configWriteTarget(loadedPath: string | null): string {
+  return process.env.HELM_CONFIG || loadedPath || './config.json'
+}
+
+/**
+ * Raw JSON → validated Config with env overrides applied. Throws ConfigError
+ * on anything invalid, which is also how setup and Settings check a config
+ * before writing it. `quiet` skips the warnings meant for the startup log.
+ */
+export async function buildConfig(raw: any, { quiet = false } = {}): Promise<Config> {
   const config: Config = {
-    server: { ...DEFAULTS.server, ...(raw.server ?? {}) },
+    server: {
+      ...DEFAULTS.server,
+      ...(raw.server ?? {}),
+      allowedOrigins: (() => {
+        const list = raw.server?.allowedOrigins ?? []
+        if (!Array.isArray(list)) throw new ConfigError('server.allowedOrigins must be an array')
+        return list.map(normalizeOrigin)
+      })(),
+    },
     auth: { ...DEFAULTS.auth, ...(raw.auth ?? {}) },
     terminal: { ...DEFAULTS.terminal, ...(raw.terminal ?? {}) },
     alerts: {
@@ -350,6 +461,7 @@ export async function loadConfig(): Promise<{ config: Config; source: string }> 
     services: (raw.services ?? []).map(normalizeService),
   }
 
+  normalizeStacks(config, raw.stacks)
   applyEnvOverrides(config)
 
   const seen = new Set<string>()
@@ -363,10 +475,10 @@ export async function loadConfig(): Promise<{ config: Config; source: string }> 
     const file = Bun.file(config.alerts.tokenFile)
     if (await file.exists()) {
       config.alerts.token = (await file.text()).trim() || null
-      if (!config.alerts.token) {
+      if (!config.alerts.token && !quiet) {
         console.warn(`[config] ${config.alerts.tokenFile} is empty — ntfy will reject publishes`)
       }
-    } else {
+    } else if (!quiet) {
       console.warn(`[config] alerts.tokenFile not found: ${config.alerts.tokenFile}`)
     }
   }
@@ -374,11 +486,25 @@ export async function loadConfig(): Promise<{ config: Config; source: string }> 
   if (config.alerts.enabled && !config.alerts.url) {
     throw new ConfigError('alerts.enabled is true but alerts.url is not set')
   }
-  if (config.nodes.length === 0) {
-    console.warn(
-      '[config] no nodes configured — copy config.example.json to config.json, or set HELM_NODES',
-    )
-  }
+  return config
+}
 
-  return { config, source }
+/**
+ * `configured` is false only when no config file exists anywhere in
+ * CONFIG_PATHS and HELM_NODES is unset — a fresh install, which serves the
+ * first-run setup instead of a dashboard.
+ */
+export async function loadConfig(): Promise<{
+  config: Config
+  source: string
+  path: string | null
+  configured: boolean
+}> {
+  const { raw, path } = await readRawConfig()
+  const config = await buildConfig(raw)
+  const configured = path !== null || nodesFromEnv()
+  if (configured && config.nodes.length === 0) {
+    console.warn('[config] no nodes configured — add some in Settings, or set HELM_NODES')
+  }
+  return { config, source: path ?? 'defaults + env', path, configured }
 }

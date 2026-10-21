@@ -2,9 +2,14 @@
 /**
  * One machine at a glance: four readings, a CPU trend, and a one-line status.
  * The whole card links to the machine's page.
+ *
+ * It's an ion-card with router-link, so the press feedback is Ionic's own: the
+ * iOS card shrinks on .ion-activated, which Ionic sets a beat after the touch
+ * lands and clears once the touch turns into a scroll or a pull-to-refresh, so
+ * cards don't flash as you scroll past them.
  */
+import { IonCard, IonSkeletonText } from '@ionic/vue'
 import { computed } from 'vue'
-import AppLink from '@/components/ui/AppLink.vue'
 import Sparkline from '@/components/ui/Sparkline.vue'
 import StatusText from '@/components/ui/StatusText.vue'
 import TapeLabel from '@/components/ui/TapeLabel.vue'
@@ -20,6 +25,8 @@ const props = defineProps({
 })
 
 const metrics = computed(() => props.snapshot.metrics)
+/** No first answer yet, and no error either: hold the readings' place rather than leave a gap. */
+const connecting = computed(() => !metrics.value && !props.snapshot.error)
 const history = useHistory(() => props.node.id, metrics, ['cpu'])
 
 const level = (value, warn, critical) => (value >= critical ? 'critical' : value >= warn ? 'warning' : '')
@@ -69,46 +76,57 @@ const status = computed(() => {
 </script>
 
 <template>
-  <AppLink :to="`/machines/${encodeURIComponent(node.id)}`" class="card">
-    <div class="head">
-      <TapeLabel>{{ node.label }}</TapeLabel>
-      <span v-if="metrics?.system.uptime" class="uptime">{{ uptimeShort(metrics.system.uptime) }}</span>
-    </div>
+  <ion-card class="card" :router-link="`/machines/${encodeURIComponent(node.id)}`">
+    <div class="body">
+      <div class="head">
+        <TapeLabel>{{ node.label }}</TapeLabel>
+        <span v-if="metrics?.system.uptime" class="uptime">{{ uptimeShort(metrics.system.uptime) }}</span>
+      </div>
 
-    <div v-if="readings.length" class="readings">
-      <div v-for="reading in readings" :key="reading.label" class="reading" :class="reading.level" :title="reading.title">
-        <div class="value num">{{ reading.value }}<small>{{ reading.unit }}</small></div>
-        <div class="label">{{ reading.label }}</div>
+      <div v-if="readings.length" class="readings">
+        <div v-for="reading in readings" :key="reading.label" class="reading" :class="reading.level" :title="reading.title">
+          <div class="value num">{{ reading.value }}<small>{{ reading.unit }}</small></div>
+          <div class="label">{{ reading.label }}</div>
+        </div>
+      </div>
+      <div v-else-if="connecting" class="readings" aria-hidden="true">
+        <div v-for="n in 4" :key="n">
+          <ion-skeleton-text animated class="skeleton-value" />
+          <ion-skeleton-text animated class="skeleton-label" />
+        </div>
+      </div>
+      <div v-else class="readings-empty" />
+
+      <Sparkline :values="history.cpu" :max="100" />
+
+      <div class="foot">
+        <StatusText :level="status.level">{{ status.text }}</StatusText>
+        <span v-if="containers.total">{{ containers.up }} of {{ containers.total }} containers up</span>
       </div>
     </div>
-    <div v-else class="readings-empty" />
-
-    <Sparkline :values="history.cpu" :max="100" />
-
-    <div class="foot">
-      <StatusText :level="status.level">{{ status.text }}</StatusText>
-      <span v-if="containers.total">{{ containers.up }} of {{ containers.total }} containers up</span>
-    </div>
-  </AppLink>
+  </ion-card>
 </template>
 
 <style scoped>
+/* Ionic's iOS card on helm's flat surfaces: its own margins, drop shadow and
+   grey body text give way to the grid's gap, helm's radius and plain ink. */
 .card {
+  --color: var(--color-ink);
+  margin: 0;
+  border-radius: var(--radius-card);
+  box-shadow: none;
+  font-size: inherit;
+}
+@media (hover: hover) {
+  .card:hover {
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.08);
+  }
+}
+.body {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background: var(--color-surface);
-  border-radius: var(--radius-card);
   padding: 18px 18px 16px;
-  color: inherit;
-  text-decoration: none;
-  transition: box-shadow 0.2s, transform 0.15s;
-}
-.card:hover {
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.08);
-}
-.card:active {
-  transform: scale(0.99);
 }
 .head {
   display: flex;
@@ -118,7 +136,7 @@ const status = computed(() => {
 }
 .uptime {
   color: var(--color-muted);
-  font-size: 13.5px;
+  font-size: 0.8438rem;
 }
 .readings {
   display: grid;
@@ -128,9 +146,22 @@ const status = computed(() => {
 .readings-empty {
   height: 47px;
 }
+/* Same 47px as a row of readings, so nothing shifts when the numbers land. */
+.skeleton-value {
+  --border-radius: 6px;
+  width: 60%;
+  height: 26px;
+  margin: 0;
+}
+.skeleton-label {
+  --border-radius: 4px;
+  width: 45%;
+  height: 13px;
+  margin: 6px 0 2px;
+}
 .value {
   font-weight: 700;
-  font-size: 26px;
+  font-size: 1.625rem;
   line-height: 1;
   letter-spacing: -0.04em;
   white-space: nowrap;
@@ -148,7 +179,7 @@ const status = computed(() => {
 }
 .label {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 0.8125rem;
   margin-top: 4px;
 }
 .foot {
@@ -157,7 +188,7 @@ const status = computed(() => {
   align-items: center;
   justify-content: space-between;
   gap: 6px 12px;
-  font-size: 13.5px;
+  font-size: 0.8438rem;
   color: var(--color-muted);
 }
 </style>

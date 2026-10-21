@@ -447,3 +447,181 @@ export async function fetchHistory(node: NodeConfig, points: number) {
     ),
   }
 }
+
+/**
+ * Drop everything cached for a node. Called when a config reload removes the
+ * node or changes how it is reached, so the next fetch cannot serve another
+ * machine's numbers under its id.
+ */
+export function forgetNode(nodeId: string) {
+  cache.delete(nodeId)
+  inflight.delete(nodeId)
+}
+
+// ---------------------------------------------------------------- probe
+//
+// Setup and Settings test a Glances address before it is saved. The fetch runs
+// from this server, since that is who will be polling it — the browser may not
+// be able to reach it at all. It is a request to a user-supplied URL, so it is
+// kept narrow: http(s) only, redirects are not followed, bodies are capped, and
+// only `system` (plus a best-effort `containers`) is asked for.
+
+export type ProbeTarget = { url?: unknown; username?: unknown; password?: unknown }
+export type Probe =
+  | {
+      ok: true
+      api: number
+      hostname: string
+      os: string | null
+      containers: { name: string; image: string | null; status: string }[]
+    }
+  | { ok: false; error: string }
+
+const PROBE_TIMEOUT_MS = 5000
+const PROBE_SYSTEM_MAX_BYTES = 256 * 1024
+const PROBE_CONTAINERS_MAX_BYTES = 4 * 1024 * 1024
+
+class ProbeError extends Error {}
+
+/** Reads at most `limit` bytes; anything bigger is not a Glances reply. */
+async function readCapped(response: Response, limit: number): Promise<string> {
+  const declared = Number(response.headers.get('content-length') ?? 0)
+  if (declared > limit) throw new ProbeError('too-big')
+  const reader = response.body?.getReader()
+  if (!reader) return ''
+  const chunks: Uint8Array[] = []
+  let size = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > limit) {
+      await reader.cancel().catch(() => {})
+      throw new ProbeError('too-big')
+    }
+    chunks.push(value)
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks))
+}
+
+type ProbeReply = { status: number; body: any }
+
+async function probeGet(
+  url: string,
+  headers: Record<string, string>,
+  limit: number,
+): Promise<ProbeReply> {
+  const response = await fetch(url, {
+    headers: { Accept: 'application/json', ...headers },
+    redirect: 'manual',
+    signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+  })
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => {})
+    return { status: response.status, body: null }
+  }
+  const text = await readCapped(response, limit)
+  try {
+    return { status: response.status, body: JSON.parse(text) }
+  } catch {
+    return { status: response.status, body: undefined }
+  }
+}
+
+/** "http://host:61208/" → "http://host:61208", or a human reason it is not usable. */
+export function parseGlancesUrl(input: unknown): { base: string } | { error: string } {
+  const value = String(input ?? '').trim()
+  if (!value) return { error: 'Enter the Glances address, like http://192.168.1.10:61208' }
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    return { error: `"${value}" is not a valid address — include http://` }
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return { error: 'The address must start with http:// or https://' }
+  }
+  if (url.username || url.password) {
+    return { error: 'Put the username and password in their own fields, not in the address' }
+  }
+  return { base: `${url.origin}${url.pathname.replace(/\/+$/, '')}` }
+}
+
+export async function probeGlances(target: ProbeTarget): Promise<Probe> {
+  const parsed = parseGlancesUrl(target?.url)
+  if ('error' in parsed) return { ok: false, error: parsed.error }
+  const { base } = parsed
+  const where = new URL(base).host
+
+  const username = target?.username ? String(target.username) : ''
+  const password = target?.password ? String(target.password) : ''
+  const headers: Record<string, string> =
+    username || password
+      ? { Authorization: `Basic ${btoa(`${username || 'glances'}:${password}`)}` }
+      : {}
+
+  let api = 0
+  let system: any
+  try {
+    // 4.x first; a 3.x server answers /api/4 with a 404 (or similar).
+    for (const version of [4, 3]) {
+      const reply = await probeGet(`${base}/api/${version}/system`, headers, PROBE_SYSTEM_MAX_BYTES)
+      if (reply.status === 401) {
+        return {
+          ok: false,
+          error: headers.Authorization
+            ? 'Glances rejected that username or password'
+            : 'Glances wants a password — enter the username and password it was started with',
+        }
+      }
+      if (reply.status >= 200 && reply.status < 300) {
+        if (reply.body && typeof reply.body === 'object' && typeof reply.body.hostname === 'string') {
+          api = version
+          system = reply.body
+          break
+        }
+        return { ok: false, error: `That's not a Glances server — ${where} answered, but not like Glances` }
+      }
+      if (reply.status >= 300 && reply.status < 400) {
+        return { ok: false, error: `That's not a Glances server — ${where} redirects elsewhere` }
+      }
+    }
+  } catch (error) {
+    if (error instanceof ProbeError) {
+      return { ok: false, error: `That's not a Glances server — ${where} sent far too much back` }
+    }
+    const name = (error as Error)?.name
+    if (name === 'TimeoutError' || name === 'AbortError') {
+      return { ok: false, error: `Couldn't reach ${where} — it didn't answer within ${PROBE_TIMEOUT_MS / 1000}s` }
+    }
+    return {
+      ok: false,
+      error: `Couldn't reach ${where} — is Glances running there, and reachable from this server?`,
+    }
+  }
+  if (!api) {
+    return { ok: false, error: `That's not a Glances server — ${where} has no Glances API` }
+  }
+
+  // Names only, for prefilling apps. Best effort: a Glances without the
+  // containers plugin (or with no engine) just yields an empty list.
+  let containers: { name: string; image: string | null; status: string }[] = []
+  try {
+    const reply = await probeGet(`${base}/api/${api}/containers`, headers, PROBE_CONTAINERS_MAX_BYTES)
+    containers = arr(reply.body)
+      .filter((entry: any) => entry && typeof entry.name === 'string')
+      .map((entry: any) => ({
+        name: entry.name,
+        image: arr(entry.image)[0] ?? (typeof entry.image === 'string' ? entry.image : null),
+        status: String(entry.status ?? 'unknown'),
+      }))
+  } catch {}
+
+  return {
+    ok: true,
+    api,
+    hostname: system.hostname,
+    os: system.hr_name ?? system.os_name ?? null,
+    containers,
+  }
+}

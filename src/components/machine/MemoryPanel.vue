@@ -62,13 +62,13 @@ const summary = computed(() => parts.value.map((p) => `${p.label} ${bytes(p.valu
 }
 .big {
   font-weight: 700;
-  font-size: 34px;
+  font-size: 2.125rem;
   line-height: 1;
   letter-spacing: -0.04em;
 }
 .say {
   color: var(--color-ink-2);
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 .stack {
   display: flex;
@@ -88,7 +88,7 @@ const summary = computed(() => parts.value.map((p) => `${p.label} ${bytes(p.valu
 }
 .kv dt {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 0.8125rem;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -100,7 +100,7 @@ const summary = computed(() => parts.value.map((p) => `${p.label} ${bytes(p.valu
   outline: 1px solid var(--color-hairline);
 }
 .kv dd {
-  font-size: 15px;
+  font-size: 0.9375rem;
 }
 .swap {
   display: flex;
@@ -110,13 +110,13 @@ const summary = computed(() => parts.value.map((p) => `${p.label} ${bytes(p.valu
 .swap-line {
   display: flex;
   justify-content: space-between;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 .swap-label {
   font-weight: 650;
 }
 .swap-value {
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--color-ink-2);
 }
 </style>

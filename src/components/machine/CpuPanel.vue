@@ -46,13 +46,13 @@ const load = computed(() => {
 }
 .big {
   font-weight: 700;
-  font-size: 34px;
+  font-size: 2.125rem;
   line-height: 1;
   letter-spacing: -0.04em;
 }
 .say {
   color: var(--color-ink-2);
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 .kv {
   display: grid;
@@ -61,9 +61,9 @@ const load = computed(() => {
 }
 .kv dt {
   color: var(--color-muted);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .kv dd {
-  font-size: 15px;
+  font-size: 0.9375rem;
 }
 </style>

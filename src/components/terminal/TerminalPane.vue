@@ -6,19 +6,25 @@
  * dynamically: the rest of the app paints without it, and the cost is paid only
  * if you open the terminal. The WebSocket is likewise opened on demand and torn
  * down on unmount, so a closed terminal holds no PTY on the server.
+ *
+ * Ionic page lifecycle hooks only reach the routed page, so TerminalPage owns
+ * them and drives this through `active` and the exposed refit/focus/blur.
  */
-import { nextTick, onBeforeUnmount, shallowRef, useTemplateRef, watch } from 'vue'
+import { IonButton, IonIcon } from '@ionic/vue'
+import { arrowBack, arrowDown, arrowForward, arrowUp } from 'ionicons/icons'
+import { nextTick, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
 import { ptyUrl } from '@/lib/api'
 import { markReached } from '@/lib/connection'
 
 const props = defineProps({
   commands: { type: Array, default: () => [] },
-  /** Kept mounted once opened so the shell survives page switches; this says whether it's on screen. */
+  /** The page stays mounted after you leave its tab so the shell survives; this says whether it's on screen. */
   active: { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['status'])
 
+const root = useTemplateRef('root')
 const host = useTemplateRef('host')
 const status = shallowRef('idle') // idle | connecting | open | closed | error
 const detail = shallowRef(null)
@@ -34,10 +40,10 @@ const KEYS = [
   { label: 'Tab', seq: '\t', title: 'Tab (completion)' },
   { label: 'Ctrl', ctrl: true, title: 'Ctrl, then tap a letter' },
   { label: '^C', seq: '\x03', title: 'Ctrl+C (interrupt)', danger: true },
-  { label: '↑', seq: '\x1b[A', title: 'Previous command' },
-  { label: '↓', seq: '\x1b[B', title: 'Next command' },
-  { label: '←', seq: '\x1b[D', title: 'Left' },
-  { label: '→', seq: '\x1b[C', title: 'Right' },
+  { label: 'Up', icon: arrowUp, seq: '\x1b[A', title: 'Previous command' },
+  { label: 'Down', icon: arrowDown, seq: '\x1b[B', title: 'Next command' },
+  { label: 'Left', icon: arrowBack, seq: '\x1b[D', title: 'Left' },
+  { label: 'Right', icon: arrowForward, seq: '\x1b[C', title: 'Right' },
   { label: '|', seq: '|', title: 'Pipe' },
   { label: '~', seq: '~', title: 'Home directory' },
 ]
@@ -109,8 +115,16 @@ const THEME = {
   brightWhite: '#ffffff',
 }
 
-/** Smaller text on a phone so FitAddon gets enough columns for real output. */
-const fontSize = () => (window.innerWidth < 600 ? 11.5 : 13)
+/**
+ * Smaller text on a phone so FitAddon gets enough columns for real output.
+ * xterm takes pixels, so the size is scaled by the root font size: with
+ * typography.css, 1rem follows the iPhone's text-size setting (Dynamic Font
+ * Scaling), and the terminal should grow and shrink with the rest of helm.
+ */
+const fontSize = () => {
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+  return ((window.innerWidth < 600 ? 11.5 : 13) * rem) / 16
+}
 
 function sendResize() {
   if (socket?.readyState !== WebSocket.OPEN || !term.value) return
@@ -118,7 +132,9 @@ function sendResize() {
 }
 
 function refit() {
-  if (!term.value) return
+  // A hidden page (Ionic sets display: none on a tab you left) has no size;
+  // fitting it would shrink the PTY to nothing.
+  if (!term.value || !host.value?.clientWidth) return
   const size = fontSize()
   if (term.value.options.fontSize !== size) term.value.options.fontSize = size
   try {
@@ -219,15 +235,70 @@ function reconnect() {
   connect()
 }
 
-defineExpose({ reconnect })
+/**
+ * The on-screen keyboard. Safari — a home-screen install included — doesn't
+ * resize the page for it: the keyboard slides over the layout and only the
+ * visual viewport shrinks. Ionic's keyboard handling (scroll assist,
+ * --keyboard-offset) is for ion-input and ion-textarea; xterm's own textarea
+ * gets none of it. So the pane measures how much of itself is hidden below the
+ * visual viewport and pads its bottom by that much — the screen shrinks, the
+ * ResizeObserver refits xterm to fewer rows (and tells the PTY), and the extra
+ * keys sit right on top of the keyboard. Where the viewport does resize for the
+ * keyboard (Android Chrome with resizes-content) the pane itself shrinks and
+ * the overlap is zero.
+ */
+const keyboardInset = shallowRef(0)
+/** Always leave the key row and a couple of lines, even on a phone in landscape. */
+const MIN_PANE = 96
+let insetFrame = 0
+
+function measureInset() {
+  insetFrame = 0
+  const viewport = window.visualViewport
+  if (!props.active || !viewport || !root.value) return
+  const rect = root.value.getBoundingClientRect()
+  if (!rect.height) return
+  // Client rects are relative to the layout viewport; when Safari pans the
+  // visual viewport up to reveal the cursor, offsetTop says by how much.
+  const overlap = rect.bottom - (viewport.offsetTop + viewport.height)
+  keyboardInset.value = overlap < 2 ? 0 : Math.round(Math.max(0, Math.min(overlap, rect.height - MIN_PANE)))
+}
+
+function scheduleInset() {
+  if (!insetFrame) insetFrame = requestAnimationFrame(measureInset)
+}
+
+onMounted(() => {
+  window.visualViewport?.addEventListener('resize', scheduleInset)
+  // Safari pans the visual viewport (rather than resizing it) to keep the cursor in view.
+  window.visualViewport?.addEventListener('scroll', scheduleInset)
+})
+
+function focus() {
+  term.value?.focus()
+}
+
+function blur() {
+  term.value?.blur()
+}
+
+defineExpose({ reconnect, refit, focus, blur })
 
 watch(
   () => props.active,
   (active) => {
-    if (!active) return
+    if (!active) {
+      // Leaving the tab: don't leave the keyboard up for a hidden textarea.
+      blur()
+      keyboardInset.value = 0
+      return
+    }
     boot()
     // A hidden page has no size, so xterm needs a nudge when it reappears.
-    nextTick(refit)
+    nextTick(() => {
+      refit()
+      measureInset()
+    })
   },
   { immediate: true },
 )
@@ -235,6 +306,9 @@ watch(
 onBeforeUnmount(() => {
   disposed = true
   clearTimeout(retry)
+  cancelAnimationFrame(insetFrame)
+  window.visualViewport?.removeEventListener('resize', scheduleInset)
+  window.visualViewport?.removeEventListener('scroll', scheduleInset)
   observer?.disconnect()
   try {
     socket?.close()
@@ -244,38 +318,50 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="pane">
+  <div ref="root" class="pane" :style="keyboardInset ? { paddingBottom: `${keyboardInset}px` } : undefined">
     <div ref="host" class="screen" />
 
-    <!-- mousedown/touchstart are prevented so tapping a key never blurs the
-         terminal — on a phone that would dismiss the keyboard every keystroke. -->
-    <div class="keys" aria-label="Extra keys" @mousedown.prevent @touchstart.prevent>
-      <button
+    <!-- mousedown is prevented so tapping a key never moves focus off the
+         terminal — on a phone that would dismiss the keyboard every keystroke.
+         (Not touchstart: preventing that also cancels the tap's click on iOS.)
+         ion-button's native <button> is in its shadow root, but mousedown is
+         composed, so it bubbles out to here. The press itself is the click, so
+         Ionic's activated state still shows, and press() hands focus back to
+         xterm anyway. aria-label/aria-pressed set on ion-button are copied onto
+         that inner <button>, where assistive tech reads them. -->
+    <div class="keys" aria-label="Extra keys" @mousedown.prevent>
+      <ion-button
         v-for="key in KEYS"
         :key="key.label"
-        type="button"
+        size="small"
+        :fill="key.ctrl && ctrlActive ? 'solid' : 'outline'"
+        :color="key.danger ? 'danger' : 'primary'"
         :title="key.title"
-        :aria-pressed="key.ctrl ? ctrlActive : undefined"
-        :class="{ danger: key.danger, on: key.ctrl && ctrlActive }"
+        :aria-label="key.icon ? key.title : undefined"
+        :aria-pressed="key.ctrl ? String(ctrlActive) : undefined"
         @click="press(key)"
       >
-        {{ key.label }}
-      </button>
+        <ion-icon v-if="key.icon" slot="icon-only" :icon="key.icon" />
+        <template v-else>{{ key.label }}</template>
+      </ion-button>
     </div>
 
     <div v-if="commands.length" class="saved">
       <span class="saved-label">Saved commands. Tap one to type it, then press Enter.</span>
+      <!-- Round ion-buttons rather than ion-chips: a chip is a display element
+           (not focusable, no button semantics), and these are actions. -->
       <div class="saved-list" @mousedown.prevent>
-        <button
+        <ion-button
           v-for="command in commands"
           :key="command.name"
-          type="button"
-          class="chip"
+          size="small"
+          shape="round"
+          fill="outline"
           :title="command.description || command.command"
           @click="stage(command.command)"
         >
           {{ command.name }}
-        </button>
+        </ion-button>
       </div>
     </div>
   </div>
@@ -295,33 +381,33 @@ onBeforeUnmount(() => {
   background: var(--color-term);
   border-radius: var(--radius-row);
   padding: 10px 6px 6px 10px;
+  /* Undo what Ionic's structure.css puts on every element and the body, so
+     xterm renders and measures its cells as it would on a plain page and iOS
+     still offers its long-press menu (Paste) on the terminal. */
+  text-rendering: auto;
+  overflow-wrap: normal;
+  -webkit-touch-callout: default;
+}
+.screen :deep(*) {
+  -webkit-touch-callout: default;
 }
 .keys {
   display: grid;
   grid-template-columns: repeat(10, minmax(0, 1fr));
   gap: 4px;
   padding-top: 8px;
+  /* Quick taps on the keys should be keystrokes, not a double-tap zoom. */
+  touch-action: manipulation;
 }
-.keys button {
-  border: 1px solid var(--color-hairline);
-  background: var(--color-surface);
-  border-radius: 8px;
-  padding: 9px 0;
-  font-family: var(--font-mono);
-  font-size: 12px;
+/* Only what the ten-across grid needs: no outer margin, no minimum padding. */
+.keys ion-button {
+  margin: 0;
   min-width: 0;
-  color: var(--color-ink);
-}
-.keys button:active {
-  transform: translateY(1px);
-}
-.keys .danger {
-  color: var(--color-critical);
-}
-.keys .on {
-  background: var(--color-ink);
-  color: var(--color-plane);
-  border-color: var(--color-ink);
+  height: 34px;
+  --padding-start: 0;
+  --padding-end: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
 }
 .saved {
   display: flex;
@@ -330,13 +416,16 @@ onBeforeUnmount(() => {
   padding-top: 12px;
 }
 .saved-label {
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--color-muted);
 }
 .saved-list {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+.saved-list ion-button {
+  margin: 0;
 }
 
 /* A real keyboard has all of these. */

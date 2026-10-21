@@ -32,6 +32,7 @@ set -euo pipefail
 APP_NAME="helm"
 CONFIG_DIR="/etc/${APP_NAME}"
 CONFIG_FILE="${CONFIG_DIR}/config.json"
+SETUP_CODE_FILE="${CONFIG_DIR}/setup-code"
 UNIT_FILE="/etc/systemd/system/${APP_NAME}.service"
 RUNTIME_ENV="/run/${APP_NAME}/env"
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -175,20 +176,25 @@ fi
 # ---------------------------------------------------------------- config
 #
 # config.json is gitignored, so it cannot ride along in the repo. It lives in
-# /etc, seeded once, and is never touched again by a re-install.
+# /etc and is never written by this script. On a fresh install there is none:
+# helm starts unconfigured and the setup page in the browser writes it, so the
+# directory belongs to the run-as user (700 — the config can hold an access
+# token and Glances passwords). The service also keeps its one-time setup code
+# there until setup is done. A re-install leaves an existing config as it is.
 
-install -d -m 755 "$CONFIG_DIR"
+install -d -m 700 "$CONFIG_DIR"
+chown "${RUN_USER}:${USER_GID}" "$CONFIG_DIR"
+chmod 700 "$CONFIG_DIR"
 
-if [[ ! -f "$CONFIG_FILE" ]]; then
-  cp "${SOURCE_DIR}/config.example.json" "$CONFIG_FILE"
-  c_ok "seeded ${CONFIG_FILE} from config.example.json — edit your nodes and services"
-else
+if [[ -f "$CONFIG_FILE" ]]; then
   c_info "kept existing ${CONFIG_FILE}"
+  # Owned by the run-as user, since that is who reads (and now edits) it.
+  # Still 600: it can hold an access token and Glances credentials.
+  chown "${RUN_USER}:${USER_GID}" "$CONFIG_FILE"
+  chmod 600 "$CONFIG_FILE"
+else
+  c_info "no ${CONFIG_FILE} yet — helm will start in setup mode"
 fi
-# Owned by the run-as user, since that is who reads it now. Still 600: it can
-# hold an access token and Glances credentials.
-chown "${RUN_USER}:${USER_GID}" "$CONFIG_FILE"
-chmod 600 "$CONFIG_FILE"
 
 # ---------------------------------------------------------------- linger
 #
@@ -302,19 +308,44 @@ if ! systemctl is-active --quiet "${APP_NAME}.service"; then
   die "service failed to start"
 fi
 
+# A fresh install prints its setup code. The service writes it on first start;
+# give it a moment (ExecStartPre may still be waiting on tailscaled).
+SETUP_CODE=""
+if [[ ! -f "$CONFIG_FILE" ]]; then
+  for _ in $(seq 1 20); do
+    [[ -s "$SETUP_CODE_FILE" ]] && break
+    sleep 0.5
+  done
+  SETUP_CODE="$(tr -d '[:space:]' < "$SETUP_CODE_FILE" 2>/dev/null || true)"
+fi
+
 BOUND="$(systemctl show "${APP_NAME}.service" -p Environment --value | tr ' ' '\n' | sed -n 's/^HELM_HOST=//p' | tail -1)"
 [[ -n "$BOUND" ]] || BOUND="${HOST:-the tailnet address}"
 
+if [[ $NO_TAILSCALE -eq 1 ]]; then
+  URL="http://${HOST}:${PORT}/"
+  URL_NOTE=""
+else
+  URL="http://$(hostname -s):${PORT}/"
+  URL_NOTE="   (over your tailnet)"
+fi
+
 echo
 c_ok "${APP_NAME} is running"
-if [[ $NO_TAILSCALE -eq 1 ]]; then
-  echo "  url:      http://${HOST}:${PORT}/"
-else
-  echo "  url:      http://$(hostname -s):${PORT}/   (over your tailnet)"
-fi
+echo "  url:      ${URL}${URL_NOTE}"
 echo "  bound to: ${BOUND}"
 echo "  user:     ${RUN_USER} (terminal opens ${USER_SHELL})"
 echo "  config:   ${CONFIG_FILE}"
 echo "  source:   ${SOURCE_DIR}"
 echo "  logs:     journalctl -u ${APP_NAME} -f"
-echo "  update:   git -C ${SOURCE_DIR} pull && systemctl restart ${APP_NAME}"
+echo "  update:   git -C ${SOURCE_DIR} pull && sudo systemctl restart ${APP_NAME}"
+
+if [[ -n "$SETUP_CODE" ]]; then
+  echo
+  c_ok "Open ${URL} and enter setup code ${SETUP_CODE}"
+  echo "  (the code is also in ${SETUP_CODE_FILE} and in journalctl -u ${APP_NAME})"
+elif [[ ! -f "$CONFIG_FILE" ]]; then
+  echo
+  c_warn "helm is waiting to be set up, but its setup code is not written yet."
+  echo "  Open ${URL} and find the code with: journalctl -u ${APP_NAME} | grep 'setup code'"
+fi

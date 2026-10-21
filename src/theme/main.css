@@ -1,0 +1,257 @@
+/* helm's own CSS, loaded after Ionic's global stylesheets (src/main.ts).
+ *
+ * Everything here targets helm's own markup: plain HTML elements and helm's
+ * classes. Ionic components are styled through their CSS variables and
+ * shadow parts (variables.css, component styles), never by reaching into
+ * their shadow DOM, and nothing here may select ion-* elements broadly.
+ *
+ * Text is sized in rem so it follows Dynamic Font Scaling (see main.ts). */
+@import "@fontsource-variable/quicksand";
+@import "@fontsource/space-mono/400.css";
+@import "@fontsource/space-mono/700.css";
+
+/* ---------------------------------------------------------------------------
+ * Tokens
+ *
+ * Color means data or state, nothing else: there is no brand accent. The
+ * surfaces are a cool grey (light) and a steel blue (dark), following the
+ * device setting. Plain custom properties: variables.css points Ionic's own
+ * variables (--ion-background-color, --ion-color-primary…) at these, and
+ * component styles use them directly.
+ *
+ * The series and status hues are the validated set (CVD-separated, ≥3:1 on
+ * their surface); the light steps are their darker counterparts.
+ * ------------------------------------------------------------------------ */
+/* Light values; the dark ones are redefined below. */
+:root {
+  /* Surfaces */
+  --color-plane: #eceef0;
+  --color-surface: #ffffff;
+  --color-raised: #e2e5e8;
+  --color-sunken: #e2e5e8;
+
+  /* Ink */
+  --color-ink: #15181b;
+  --color-ink-2: #464c53;
+  --color-muted: #6b727a;
+
+  /* Lines */
+  --color-hairline: rgba(21, 24, 27, 0.12);
+  --color-grid: rgba(21, 24, 27, 0.1);
+  --color-baseline: rgba(21, 24, 27, 0.2);
+
+  /* Machine labels: black tape, white print */
+  --color-tape: #15181b;
+  --color-tape-ink: #f4f5f6;
+
+  /* The terminal and logs stay dark in both themes */
+  --color-term: #15181b;
+  --color-term-ink: #dfe3e6;
+
+  /* Categorical series — assign in fixed order, never cycled */
+  --color-series-1: #2a6fc9;
+  --color-series-2: #c24a1b;
+  --color-series-3: #12855d;
+  --color-series-4: #a86f00;
+
+  /* Status — reserved; never reused as a series color */
+  --color-good: #0a8a0a;
+  --color-warning: #a86f00;
+  --color-serious: #c2582b;
+  --color-critical: #c02f2f;
+
+  --font-sans: "Quicksand Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Space Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-card: 20px;
+  --radius-row: 12px;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-plane: #1a1e22;
+    --color-surface: #22272c;
+    --color-raised: #2b3137;
+    --color-sunken: #15181b;
+    --color-ink: #eef0f2;
+    --color-ink-2: #b4bac1;
+    --color-muted: #8a929a;
+    --color-hairline: rgba(238, 240, 242, 0.1);
+    --color-grid: rgba(238, 240, 242, 0.08);
+    --color-baseline: rgba(238, 240, 242, 0.18);
+    --color-tape: #eceee6;
+    --color-tape-ink: #15181b;
+    --color-series-1: #3987e5;
+    --color-series-2: #d95926;
+    --color-series-3: #199e70;
+    --color-series-4: #c98500;
+    --color-good: #2bb32b;
+    --color-warning: #fab219;
+    --color-serious: #ec835a;
+    --color-critical: #e05252;
+    color-scheme: dark;
+  }
+}
+
+/* Safe areas: there are no helm variables for them. Use Ionic's
+ * --ion-safe-area-top|right|bottom|left (core.css sets them from
+ * env(safe-area-inset-*)) for anything custom that sits flush against an
+ * edge; Ionic's toolbars, tab bar and content already pad for them.
+ * https://ionicframework.com/docs/api/content#safe-area-padding */
+
+/* What Ionic's normalize.css leaves to the app: zero margins on text blocks
+ * and lists, block images. Aimed at plain HTML elements only — never `*` or
+ * ion-*: a page style on an Ionic element's host beats that component's own
+ * :host style, so a universal reset (like Tailwind's preflight) would strip
+ * the padding from ion-title, ion-button, ion-item and the rest.
+ *
+ * Headings: typography.css gives unstyled h1–h6 Ionic's default scale and
+ * margins. Every heading in helm is styled by its own class (.section-title,
+ * .panel-title, .block-title…) or by ion-label, so they start from zero here
+ * and each class sets its size — the documented way to apply your own type
+ * scale on top of Ionic's. https://ionicframework.com/docs/layout/typography */
+p,
+ul,
+ol,
+dl,
+dd,
+figure,
+blockquote,
+pre {
+  margin: 0;
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+ul,
+ol {
+  padding: 0;
+  list-style: none;
+}
+img,
+svg,
+video,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+
+/* structure.css already fixes the body in place (only ion-content scrolls),
+ * turns off overscroll, tap highlight and double-tap zoom, and antialiases;
+ * this is only helm's type and ground. */
+body {
+  background: var(--color-plane);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-series-1);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-baseline) transparent;
+}
+
+/* Columns of numbers align. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Numbers and identifiers wear the mono face, a touch tighter since it runs wide. */
+.num {
+  font-family: var(--font-mono);
+  letter-spacing: -0.02em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Shared page typography. Controls (buttons, chips, segments, lists, sheets)
+ * are Ionic components, themed through variables.css.
+ * ------------------------------------------------------------------------ */
+/* A plain <a> inside a sentence (e.g. the external Glances link in setup).
+   In-app navigation is an Ionic component with router-link, not this. */
+.link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.note {
+  background: var(--color-sunken);
+  border-radius: var(--radius-row);
+  padding: 12px 14px;
+  font-size: 0.875rem;
+  color: var(--color-ink-2);
+}
+
+.page {
+  max-width: 1180px;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.page-title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+.page-sub {
+  color: var(--color-muted);
+  font-size: 0.875rem;
+  margin-top: 4px;
+}
+.section-title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.section-title .count {
+  color: var(--color-muted);
+  font-weight: 500;
+  font-size: 0.875rem;
+}

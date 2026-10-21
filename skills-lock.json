@@ -13,6 +13,24 @@
       "skillPath": "skills/frontend-design/SKILL.md",
       "computedHash": "89496d5dd00f4810205f351759594fc2742bf8eea85a2f2b2d1de59f4bd91576"
     },
+    "ionic-app-development": {
+      "source": "capawesome-team/skills",
+      "sourceType": "github",
+      "skillPath": "skills/ionic-app-development/SKILL.md",
+      "computedHash": "0de1816d61abd7cff966745ccfed04cd40186b6156f5e94d2c976ea4c14d698d"
+    },
+    "ionic-design": {
+      "source": "cap-go/capgo-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ionic-design/SKILL.md",
+      "computedHash": "344f27092a01b644d0562ef3d5f39e1cf43901ca83f9744347444ff8f927016f"
+    },
+    "ionic-vue": {
+      "source": "capawesome-team/skills",
+      "sourceType": "github",
+      "skillPath": "skills/ionic-vue/SKILL.md",
+      "computedHash": "938ac08493d5b90de286a5846946073ba02af3b35943e7f2a734b06dba1f8da0"
+    },
     "redesign-existing-projects": {
       "source": "leonxlnx/taste-skill",
       "sourceType": "github",

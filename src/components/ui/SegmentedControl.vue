@@ -1,5 +1,14 @@
 <script setup>
-/** Pick one of a few options, e.g. which machine. */
+/**
+ * Pick one of a few options, e.g. which machine. A native iOS segmented control.
+ *
+ * v-model works on ion-segment directly: Ionic Vue's wrapper binds `value` and
+ * updates it on ionChange (fired once a tap or swipe settles, not while
+ * dragging across buttons). Option values are strings, so no coercion needed.
+ * https://ionicframework.com/docs/api/segment
+ */
+import { IonLabel, IonSegment, IonSegmentButton } from '@ionic/vue'
+
 const model = defineModel({ type: String })
 
 defineProps({
@@ -10,42 +19,9 @@ defineProps({
 </script>
 
 <template>
-  <div class="seg" role="group" :aria-label="label">
-    <button
-      v-for="option in options"
-      :key="option.value"
-      type="button"
-      :aria-pressed="model === option.value"
-      @click="model = option.value"
-    >
-      {{ option.label }}
-    </button>
-  </div>
+  <ion-segment v-model="model" :scrollable="options.length > 3" :aria-label="label">
+    <ion-segment-button v-for="option in options" :key="option.value" :value="option.value">
+      <ion-label>{{ option.label }}</ion-label>
+    </ion-segment-button>
+  </ion-segment>
 </template>
-
-<style scoped>
-.seg {
-  display: inline-flex;
-  background: var(--color-sunken);
-  border-radius: 999px;
-  padding: 3px;
-  max-width: 100%;
-  overflow-x: auto;
-}
-.seg button {
-  border: 0;
-  background: none;
-  padding: 6px 14px;
-  border-radius: 999px;
-  font-size: 14px;
-  color: var(--color-ink-2);
-  white-space: nowrap;
-  transition: background-color 0.2s, color 0.2s;
-}
-.seg button[aria-pressed='true'] {
-  background: var(--color-surface);
-  color: var(--color-ink);
-  font-weight: 650;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
-}
-</style>

@@ -51,7 +51,7 @@ const levelFor = (pct) => (pct >= 97 ? 'critical' : pct >= props.threshold ? 'wa
 <style scoped>
 .say {
   color: var(--color-ink-2);
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 .say b {
   color: var(--color-ink);
@@ -71,14 +71,14 @@ const levelFor = (pct) => (pct >= 97 ? 'critical' : pct >= props.threshold ? 'wa
 }
 .mount {
   font-weight: 700;
-  font-size: 13.5px;
+  font-size: 0.8438rem;
   overflow-wrap: anywhere;
 }
 .usage {
   display: inline-flex;
   align-items: baseline;
   gap: 10px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--color-ink-2);
 }
 </style>

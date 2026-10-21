@@ -1,0 +1,1 @@
+import{Kn as e,un as t}from"./api-CuFL5MAY.js";import{n}from"./useMetrics-BJ-4epmL.js";function r(r,i,a){return t(()=>{e(i);let t=e(r);return Object.fromEntries(a.map(e=>[e,t?n(t,e):[]]))})}export{r as t};

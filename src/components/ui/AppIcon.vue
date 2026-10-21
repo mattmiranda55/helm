@@ -65,7 +65,7 @@ watch(slug, () => (status.value = 'loading'))
 }
 .initials {
   font-weight: 700;
-  font-size: 20px;
+  font-size: 1.25rem;
   color: var(--color-ink);
 }
 .flag {
